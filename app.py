@@ -68,11 +68,22 @@ st.markdown("""
 
 
 def _alert_card_html(severity, icon, title, message):
-    return '<div class="alert-card-' + severity + '"><h4>' + icon + ' ' + title + '</h4><p>' + message + '</p></div>'
+    return (
+        '<div class="alert-card-' + severity + '">
+        '<h4>' + icon + ' ' + title + '</h4>'
+        '<p>' + message + '</p>'
+        '</div>'
+    )
 
 
-def _travel_item_html(icon, time, activity, location, cost_str):
-    return '<div class="travel-item"><strong>' + icon + ' ' + time + '</strong> — ' + activity + '  <br><small>📍 ' + location + ' · 💰 ' + cost_str + '</small></div>'
+def _travel_item_html(icon, time_str, activity, location, cost_str):
+    return (
+        '<div class="travel-item">
+        '<strong>' + icon + ' ' + time_str + '</strong> — ' + activity + '<br>'
+        '<small>f4cd ' + location + ' 4b0 ' + cost_str + '</small>'
+        '</div>'
+    )
+
 
 # ========== 侧边栏 ========== 
 def render_sidebar():
@@ -97,8 +108,8 @@ def render_sidebar():
         if today_courses:
             for c in today_courses:
                 type_badge = "🧪" if c.get("type") == "实验" else "📖"
-                st.markdown(type_badge + " **" + c['course'] + "**  
-⏰ " + c['time'] + "  📍 " + c['location'])
+                line = type_badge + " **" + c["course"] + "**  \n⏰ " + c["time"] + "  📍 " + c["location"]
+                st.markdown(line)
         else:
             st.info("🎉 今天没有课，自由安排！")
 
@@ -107,28 +118,36 @@ def render_sidebar():
         # 财务快览
         finance = get_finance()
         st.markdown("### 💰 财务快览")
-        remaining_str = "¥" + str(int(finance['remaining']))
-        spent_str = "-¥" + str(int(finance['spent'])) + " 已花费"
+        remaining_str = "¥" + str(int(finance["remaining"]))
+        spent_str = "-¥" + str(int(finance["spent"])) + " 已花费"
         st.metric(label="本月剩余", value=remaining_str, delta=spent_str, delta_color="inverse")
-        st.progress(min(finance["budget_usage_pct"] / 100, 1.0), text="预算使用 " + str(finance['budget_usage_pct']) + "%")
+        st.progress(
+            min(finance["budget_usage_pct"] / 100, 1.0),
+            text="预算使用 " + str(finance["budget_usage_pct"]) + "%",
+        )
 
         if finance["budget_usage_pct"] > 80:
-            warn_msg = "⚠️ 预算紧张！剩余 " + str(finance['days_left_in_month']) + " 天，建议每天 ≤ ¥" + str(int(finance['suggested_daily']))
+            warn_msg = (
+                "⚠️ 预算紧张！剩余 " + str(finance["days_left_in_month"])
+                + " 天，建议每天 ≤ ¥" + str(int(finance["suggested_daily"]))
+            )
             st.warning(warn_msg)
 
         with st.expander("📋 最近消费流水"):
             for t in finance["recent_transactions"][:8]:
-                icon = t.get('icon', '💳')
-                line = icon + " **" + t['item'] + "** — ¥" + str(t['amount']) + "  
-<small>" + t['date'] + " · " + t['category'] + "</small>"
+                t_icon = t.get("icon", "💳")
+                line = (
+                    t_icon + " **" + t["item"] + "** — ¥" + str(t["amount"])
+                    + "  \n<small>" + t["date"] + " · " + t["category"] + "</small>"
+                )
                 st.markdown(line, unsafe_allow_html=True)
 
         with st.expander("✏️ 快速记一笔"):
             with st.form("quick_expense", clear_on_submit=True):
-                cols = st.columns([2, 1])
-                with cols[0]:
+                form_cols = st.columns([2, 1])
+                with form_cols[0]:
                     item = st.text_input("花了什么", placeholder="奶茶")
-                with cols[1]:
+                with form_cols[1]:
                     amount = st.number_input("金额", min_value=0.0, step=0.5, format="%.1f")
                 category = st.selectbox("分类", ["餐饮", "交通", "购物", "学习用品", "娱乐", "其他"])
                 submitted = st.form_submit_button("📝 记录")
@@ -142,19 +161,21 @@ def render_sidebar():
         health = get_health()
         st.markdown("### 🏥 今日健康")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("步数", "{:,}".format(health['today_steps']), delta="目标 {:,}".format(health['step_goal']))
-        with col2:
-            st.metric("睡眠", str(health['sleep_hours']) + "h", delta=health["sleep_quality"])
+        hcol1, hcol2 = st.columns(2)
+        with hcol1:
+            st.metric("步数", "{:,}".format(health["today_steps"]), delta="目标 {:,.format(health["step_goal"])})")
+        with hcol2:
+            st.metric("睡眠", str(health["sleep_hours"]) + "h", delta=health["sleep_quality"])  
 
-        col3, col4 = st.columns(2)
-        with col3:
-            st.metric("喝水", str(health['water_cups']) + "/" + str(health['water_goal']) + "杯")
-        with col4:
-            st.metric("运动", str(health['exercise_this_week']) + "/" + str(health['exercise_goal']) + "次")
+        hcol3, hcol4 = st.columns(2)
+        with hcol3:
+            st.metric("喝水", str(health["water_cups"]) + "/" + str(health["water_goal"]) + "杯")
+        with hcol4:
+            st.metric("运动", str(health["exercise_this_week"]) + "/" + str(health["exercise_goal"]) + "次")
 
-        st.caption("😊 心情: " + health['mood'] + " | 🔥 连续打卡 " + str(health['checkin_streak']) + " 天")
+        st.caption(
+            "😊 心情: " + health["mood"] + " | 🔥 连续打卡 " + str(health["checkin_streak"]) + " 天"
+        )
 
         st.markdown("**快速打卡：**")
         btn_cols = st.columns(3)
@@ -180,12 +201,16 @@ def render_sidebar():
             st.session_state.todo_done = {t["id"]: t["done"] for t in todos}
 
         for t in todos:
-            label = t['priority'] + " " + t['task'] + "（" + t['deadline'] + "）"
-            checked = st.checkbox(label, value=st.session_state.todo_done.get(t["id"], t["done"]), key="todo_" + str(t['id']))
+            label = t["priority"] + " " + t["task"] + "（" + t["deadline"] + "）"
+            checked = st.checkbox(
+                label,
+                value=st.session_state.todo_done.get(t["id"], t["done"]),
+                key="todo_" + str(t["id"]),
+            )
             if checked != st.session_state.todo_done.get(t["id"]):
                 st.session_state.todo_done[t["id"]] = checked
                 if checked:
-                    st.toast("✅ 完成：" + t['task'], icon="🎉")
+                    st.toast("✅ 完成：" + t["task"], icon="🎉")
 
         st.divider()
 
@@ -194,7 +219,7 @@ def render_sidebar():
         if exams:
             st.markdown("### 🎯 考试倒计时")
             for e in exams:
-                msg = "**" + e['course'] + "** — " + str(e['days_left']) + " 天后\n📍 " + e['location']
+                msg = "**" + e["course"] + "** — " + str(e["days_left"]) + " 天后\n📍 " + e["location"]
                 if e["days_left"] <= 3:
                     st.error("🔴 " + msg + "！")
                 elif e["days_left"] <= 7:
@@ -205,12 +230,13 @@ def render_sidebar():
 
 # ========== 主页面头部 ========== 
 def render_header():
-    st.markdown("""
-    <div class="main-header">
-        <h1>🎓 UniLife OS</h1>
-        <p>Hi！我是你的大学生活智能助手，课程、消费、健康、出行——我都能帮你搞定 ✨</p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div class="main-header">'
+        '<h1>🎓 UniLife OS</h1>'
+        '<p>Hi！我是你的大学生活智能助手，课程、消费、健康、出行——我都能帮你搞定 ✨</p>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
 
 # ========== 智能提醒卡片 ========== 
@@ -274,15 +300,26 @@ def _generate_welcome():
     context = build_context_summary()
     alerts = get_alerts()
 
-    lines = ["Hey！欢迎回来 👋 我是 **UniLife**，你的校园生活小助手~\n"]
+    lines = []
+    lines.append("Hey！欢迎回来 👋 我是 **UniLife**，你的校园生活小助手~\n")
     lines.append("这是你今天的快报：\n")
-    lines.append("📅 **课程** — " + context['schedule_summary'].split(chr(10))[0])
-    lines.append("💰 **财务** — " + context['finance_summary'].split(chr(10))[0])
-    lines.append("📝 **待办** — " + context['todo_summary'].split(chr(10))[0])
-    lines.append("🏥 **健康** — " + context['health_summary'].split("。\")[0] + "。")
+
+    schedule_first = context["schedule_summary"].split("\n")[0]
+    finance_first = context["finance_summary"].split("\n")[0]
+    todo_first = context["todo_summary"].split("\n")[0]
+    health_parts = context["health_summary"].split("。")
+    health_first = health_parts[0] + "。" if health_parts[0] else ""
+
+    lines.append("📅 **课程** — " + schedule_first)
+    lines.append("💰 **财务** — " + finance_first)
+    lines.append("📝 **待办** — " + todo_first)
+    lines.append("🏥 **健康** — " + health_first)
 
     if alerts:
-        lines.append("\n⚡ **需要关注** — 有 " + str(len(alerts)) + " 条提醒，最重要的是：" + alerts[0]['icon'] + " " + alerts[0]['title'])
+        lines.append(
+            "\n⚡ **需要关注** — 有 " + str(len(alerts))
+            + " 条提醒，最重要的是：" + alerts[0]["icon"] + " " + alerts[0]["title"]
+        )
 
     lines.append("\n有什么我能帮你的？随时聊！💬")
     return "\n".join(lines)
@@ -300,29 +337,55 @@ def render_dashboard_tab():
     with col1:
         st.markdown("#### 💰 消费构成")
         finance = get_finance()
-        cat_data = pd.DataFrame(list(finance["categories"].items()), columns=["类别", "金额"])
-        fig = px.pie(cat_data, values="金额", names="类别", color_discrete_sequence=px.colors.qualitative.Set2, hole=0.4)
-        fig.update_traces(textposition="inside", textinfo="percent+label", hovertemplate="<b>%{label}</b><br>金额: ¥%{value:.0f}<br>占比: %{percent}<extra></extra>")
-        fig.update_layout(showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5), margin=dict(t=20, b=20, l=20, r=20), height=350)
+        cat_data = pd.DataFrame(
+            list(finance["categories"].items()),
+            columns=["类别", "金额"],
+        )
+        fig = px.pie(
+            cat_data,
+            values="金额",
+            names="类别",
+            color_discrete_sequence=px.colors.qualitative.Set2,
+            hole=0.4,
+        )
+        fig.update_traces(
+            textposition="inside",
+            textinfo="percent+label",
+            hovertemplate="<b>%{label}</b><br>金额: ¥%{value:.0f}<br>占比: %{percent}<extra></extra>",
+        )
+        fig.update_layout(
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+            margin=dict(t=20, b=20, l=20, r=20),
+            height=350,
+        )
         st.plotly_chart(fig, use_container_width=True)
 
         st.markdown("**📈 消费指标**")
         m1, m2, m3 = st.columns(3)
         with m1:
-            st.metric("日均消费", "¥" + str(int(finance['daily_avg_spent'])))
+            st.metric("日均消费", "¥" + str(int(finance["daily_avg_spent"])))
         with m2:
-            st.metric("剩余天数", str(finance['days_left_in_month']) + "天")
+            st.metric("剩余天数", str(finance["days_left_in_month"]) + "天")
         with m3:
-            st.metric("建议日限", "¥" + str(int(finance['suggested_daily'])))
+            st.metric("建议日限", "¥" + str(int(finance["suggested_daily"])))
 
     with col2:
         st.markdown("#### 📅 本周课表")
         df = pd.DataFrame(get_schedule())
         st.dataframe(
             df[["weekday", "time", "course", "location", "type"]].rename(
-                columns={"weekday": "星期", "time": "时间", "course": "课程", "location": "地点", "type": "类型"}
+                columns={
+                    "weekday": "星期",
+                    "time": "时间",
+                    "course": "课程",
+                    "location": "地点",
+                    "type": "类型",
+                }
             ),
-            use_container_width=True, hide_index=True, height=350,
+            use_container_width=True,
+            hide_index=True,
+            height=350,
         )
 
     st.divider()
@@ -339,103 +402,4 @@ def render_dashboard_tab():
             df_health = df_health.sort_values("date")
 
             st.markdown("**👣 每日步数**")
-            st.line_chart(df_health.set_index("date")["steps"], height=200)
-
-            st.markdown("**😴 每日睡眠 (小时)**")
-            st.bar_chart(df_health.set_index("date")["sleep"], height=200)
-
-        st.markdown("**📋 今日指标**")
-        h1, h2, h3, h4 = st.columns(4)
-        with h1:
-            delta_steps = health['today_steps'] - health['step_goal']
-            st.metric("步数", "{:,}".format(health['today_steps']), delta="{:+,}".format(delta_steps))
-        with h2:
-            st.metric("睡眠", str(health['sleep_hours']) + "h")
-        with h3:
-            st.metric("喝水", str(health['water_cups']) + "杯")
-        with h4:
-            st.metric("BMI", str(health['bmi']))
-
-    with col4:
-        st.markdown("#### 📝 待办清单")
-        todos = get_todos()
-        pending = [t for t in todos if not t["done"]]
-        done_list = [t for t in todos if t["done"]]
-
-        total = len(todos)
-        completed = len(done_list)
-        st.progress(completed / total if total > 0 else 0, text="完成进度 " + str(completed) + "/" + str(total))
-
-        for t in sorted(pending, key=lambda x: x["priority"]):
-            if "紧急" in t["priority"]:
-                badge = "🔴"
-            elif "重要" in t["priority"]:
-                badge = "🟡"
-            else:
-                badge = "🟢"
-            cat = t.get("category", "其他")
-            st.markdown(badge + " **" + t['task'] + "**  
-📅 " + t['deadline'] + " · 📂 " + cat)
-
-        if done_list:
-            with st.expander("✅ 已完成 (" + str(len(done_list)) + ")"):
-                for t in done_list:
-                    st.markdown("~~" + t['task'] + "~~")
-
-        st.divider()
-
-        st.markdown("#### 🎯 考试倒计时")
-        exams = get_upcoming_exams()
-        for e in exams:
-            progress = max(0, 1 - e["days_left"] / 30)
-            if e["days_left"] <= 7:
-                st.error("🔴 **" + e['course'] + "** — **" + str(e['days_left']) + "** 天后 | " + e['type'])
-            else:
-                st.info("🔵 **" + e['course'] + "** — **" + str(e['days_left']) + "** 天后 | " + e['type'])
-            st.progress(min(progress, 1.0))
-
-    st.divider()
-
-    # 旅行规划
-    st.markdown("#### ✈️ 旅行规划")
-    travel = get_travel_plan()
-
-    t1, t2 = st.columns([2, 1])
-    with t1:
-        st.markdown("### " + travel['trip_name'])
-        companions = "、".join(travel["companions"])
-        info_line = "📅 **日期**：" + travel['date'] + "  |  💰 **预算**：¥" + str(int(travel['budget'])) + "  |  👥 **同行**：" + companions + "  |  📊 **状态**：" + travel['status']
-        st.markdown(info_line)
-
-        st.markdown("**📍 行程时间线**")
-        for ti in travel["itinerary"]:
-            cost_str = "¥" + str(int(ti['cost'])) if ti["cost"] > 0 else "免费"
-            html = _travel_item_html(ti['icon'], ti['time'], ti['activity'], ti['location'], cost_str)
-            st.markdown(html, unsafe_allow_html=True)
-
-    with t2:
-        st.markdown("**💰 费用预估**")
-        budget_left = travel["budget"] - travel["total_estimated_cost"]
-        st.metric("总预估", "¥" + str(int(travel['total_estimated_cost'])), delta="预算内 ¥" + str(int(budget_left)))
-
-        st.markdown("**🎒 携带清单**")
-        for pack_item in travel["packing_list"]:
-            st.checkbox(pack_item, key="pack_" + pack_item)
-
-
-# ========== 主流程 ========== 
-def main():
-    render_sidebar()
-    render_header()
-
-    tab_chat, tab_dashboard = st.tabs(["💬 AI 对话", "📊 数据看板"])
-
-    with tab_chat:
-        render_chat_tab()
-
-    with tab_dashboard:
-        render_dashboard_tab()
-
-
-if __name__ == "__main__":
-    main()
+            st.line_chart(df_health.set_index("date")[
