@@ -4,6 +4,7 @@ UniLife OS — 主入口 (Day 2 增强版)
 """
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 from datetime import datetime
 from modules.chat_engine import chat_stream
 from modules.mock_data import (
@@ -221,9 +222,9 @@ def render_alerts():
         with cols[i % 3]:
             severity = alert.get("severity", "low")
             card_html = (
-                f'<div class="alert-card-{severity}">'
-                f'<h4>{alert["icon"]} {alert["title"]}</h4>'
-                f'<p>{alert["message"]}</p>'
+                f'<div class="alert-card-{severity}">
+                f'<h4>{alert["icon"]} {alert["title"]}</h4>
+                f'<p>{alert["message"]}</p>
                 f'</div>'
             )
             st.markdown(card_html, unsafe_allow_html=True)
@@ -233,9 +234,9 @@ def render_alerts():
             for alert in alerts[3:]:
                 severity = alert.get("severity", "low")
                 card_html = (
-                    f'<div class="alert-card-{severity}">'
-                    f'<h4>{alert["icon"]} {alert["title"]}</h4>'
-                    f'<p>{alert["message"]}</p>'
+                    f'<div class="alert-card-{severity}">
+                    f'<h4>{alert["icon"]} {alert["title"]}</h4>
+                    f'<p>{alert["message"]}</p>
                     f'</div>'
                 )
                 st.markdown(card_html, unsafe_allow_html=True)
@@ -315,7 +316,26 @@ def render_dashboard_tab():
             list(finance["categories"].items()),
             columns=["类别", "金额"]
         )
-        st.bar_chart(cat_data.set_index("类别"), height=300)
+        # 使用 Plotly 饼图
+        fig = px.pie(
+            cat_data,
+            values="金额",
+            names="类别",
+            color_discrete_sequence=px.colors.qualitative.Set2,
+            hole=0.4,
+        )
+        fig.update_traces(
+            textposition="inside",
+            textinfo="percent+label",
+            hovertemplate="<b>%{label}</b><br>金额: ¥%{value:.0f}<br>占比: %{percent}<extra></extra>",
+        )
+        fig.update_layout(
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+            margin=dict(t=20, b=20, l=20, r=20),
+            height=350,
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
         st.markdown("**📈 消费指标**")
         m1, m2, m3 = st.columns(3)
@@ -421,7 +441,7 @@ def render_dashboard_tab():
         for ti in travel["itinerary"]:
             cost_str = f"¥{ti['cost']:.0f}" if ti["cost"] > 0 else "免费"
             travel_html = (
-                f'<div class="travel-item">'
+                f'<div class="travel-item">
                 f"<strong>{ti['icon']} {ti['time']}</strong> — "
                 f"{ti['activity']}  <br>"
                 f"<small>📍 {ti['location']} · 💰 {cost_str}</small>"
