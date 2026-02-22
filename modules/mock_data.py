@@ -1,12 +1,14 @@
 """
-UniLife OS — Mock 数据中心 (Day 2 增强版)
+UniLife OS — Mock 数据中心 (Day 2 增强版 + 持久化集成)
 所有伪造数据集中管理，Day 2 扩展：
 - 消费记录扩展至 20+ 条，覆盖整月
 - 健康数据日历化（最近 7 天历史）
 - 新增旅行规划 Mock 数据
 - 课表智能匹配当日
+- 集成持久化层：todo 状态、额外消费、健康打卡数据
 """
 from datetime import datetime, timedelta
+from modules.persistence import get_todo_overrides, get_extra_transactions, get_health_overrides
 
 def get_schedule() -> list[dict]:
     """获取本周课表 Mock 数据"""
@@ -42,82 +44,117 @@ def get_today_schedule() -> list[dict]:
     return [s for s in schedule if s["weekday"] == today_weekday]
 
 def get_finance() -> dict:
-    """获取本月财务 Mock 数据（Day 2 增强：20+ 条消费记录）"""
+    """获取本月财务 Mock 数据（Day 2 增强 + 持久化合并）"""
+    base_spent = 1650.00
+    budget = 2000.00
+    base_categories = {
+        "餐饮": 820.00,
+        "交通": 150.00,
+        "购物": 380.00,
+        "学习用品": 120.00,
+        "娱乐": 100.00,
+        "其他": 80.00,
+    }
+    base_transactions = [
+        {"date": "2026-02-20", "item": "食堂早餐", "amount": 7.00,
+         "category": "餐饮", "icon": "🍜"},
+        {"date": "2026-02-19", "item": "食堂午餐", "amount": 15.00,
+         "category": "餐饮", "icon": "🍜"},
+        {"date": "2026-02-19", "item": "超市零食", "amount": 23.50,
+         "category": "购物", "icon": "🛒"},
+        {"date": "2026-02-18", "item": "奶茶（一点点）", "amount": 18.00,
+         "category": "餐饮", "icon": "🧋"},
+        {"date": "2026-02-18", "item": "地铁充值", "amount": 50.00,
+         "category": "交通", "icon": "🚇"},
+        {"date": "2026-02-17", "item": "教材《数据结构》", "amount": 45.00,
+         "category": "学习用品", "icon": "📚"},
+        {"date": "2026-02-17", "item": "食堂晚餐", "amount": 18.00,
+         "category": "餐饮", "icon": "🍜"},
+        {"date": "2026-02-16", "item": "电影票《流浪地球3》", "amount": 39.90,
+         "category": "娱乐", "icon": "🎬"},
+        {"date": "2026-02-16", "item": "爆米花可乐", "amount": 28.00,
+         "category": "餐饮", "icon": "🍿"},
+        {"date": "2026-02-15", "item": "外卖（麻辣烫）", "amount": 25.00,
+         "category": "餐饮", "icon": "🥡"},
+        {"date": "2026-02-14", "item": "情人节礼物", "amount": 99.00,
+         "category": "购物", "icon": "🎁"},
+        {"date": "2026-02-13", "item": "打印资料", "amount": 8.50,
+         "category": "学习用品", "icon": "🖨️"},
+        {"date": "2026-02-12", "item": "食堂午餐", "amount": 14.00,
+         "category": "餐饮", "icon": "🍜"},
+        {"date": "2026-02-11", "item": "公交月卡", "amount": 50.00,
+         "category": "交通", "icon": "🚌"},
+        {"date": "2026-02-10", "item": "水果（苹果+香蕉）", "amount": 15.80,
+         "category": "餐饮", "icon": "🍎"},
+        {"date": "2026-02-09", "item": "理发", "amount": 35.00,
+         "category": "其他", "icon": "💇"},
+        {"date": "2026-02-08", "item": "网易云音乐会员", "amount": 15.00,
+         "category": "娱乐", "icon": "🎵"},
+        {"date": "2026-02-07", "item": "食堂晚餐", "amount": 16.00,
+         "category": "餐饮", "icon": "🍜"},
+        {"date": "2026-02-05", "item": "淘宝（数据线）", "amount": 19.90,
+         "category": "购物", "icon": "🛒"},
+        {"date": "2026-02-03", "item": "洗衣液+纸巾", "amount": 32.00,
+         "category": "其他", "icon": "🧴"},
+        {"date": "2026-02-01", "item": "开学聚餐AA", "amount": 68.00,
+         "category": "餐饮", "icon": "🍻"},
+    ]
+
+    # 合并持久化的额外消费
+    extra = get_extra_transactions()
+    extra_total = sum(t["amount"] for t in extra)
+    all_transactions = extra + base_transactions  # 新消费排在前面
+
+    # 更新类别统计
+    categories = dict(base_categories)
+    for t in extra:
+        cat = t.get("category", "其他")
+        categories[cat] = categories.get(cat, 0) + t["amount"]
+
+    spent = base_spent + extra_total
+    remaining = max(budget - spent, 0)
+    days_left = 8
+    usage_pct = round(spent / budget * 100, 1)
+    daily_avg = round(spent / 20, 1)  # 假设已过 20 天
+    suggested = round(remaining / days_left, 2) if days_left > 0 else 0
+
     return {
-        "monthly_budget": 2000.00,
-        "spent": 1650.00,
-        "remaining": 350.00,
-        "budget_usage_pct": 82.5,
-        "daily_avg_spent": 82.5,
-        "days_left_in_month": 8,
-        "suggested_daily": 43.75,
-        "categories": {
-            "餐饮": 820.00,
-            "交通": 150.00,
-            "购物": 380.00,
-            "学习用品": 120.00,
-            "娱乐": 100.00,
-            "其他": 80.00,
-        },
-        "recent_transactions": [
-            {"date": "2026-02-20", "item": "食堂早餐", "amount": 7.00,
-             "category": "餐饮", "icon": "🍜"},
-            {"date": "2026-02-19", "item": "食堂午餐", "amount": 15.00,
-             "category": "餐饮", "icon": "🍜"},
-            {"date": "2026-02-19", "item": "超市零食", "amount": 23.50,
-             "category": "购物", "icon": "🛒"},
-            {"date": "2026-02-18", "item": "奶茶（一点点）", "amount": 18.00,
-             "category": "餐饮", "icon": "🧋"},
-            {"date": "2026-02-18", "item": "地铁充值", "amount": 50.00,
-             "category": "交通", "icon": "🚇"},
-            {"date": "2026-02-17", "item": "教材《数据结构》", "amount": 45.00,
-             "category": "学习用品", "icon": "📚"},
-            {"date": "2026-02-17", "item": "食堂晚餐", "amount": 18.00,
-             "category": "餐饮", "icon": "🍜"},
-            {"date": "2026-02-16", "item": "电影票《流浪地球3》", "amount": 39.90,
-             "category": "娱乐", "icon": "🎬"},
-            {"date": "2026-02-16", "item": "爆米花可乐", "amount": 28.00,
-             "category": "餐饮", "icon": "🍿"},
-            {"date": "2026-02-15", "item": "外卖（麻辣烫）", "amount": 25.00,
-             "category": "餐饮", "icon": "🥡"},
-            {"date": "2026-02-14", "item": "情人节礼物", "amount": 99.00,
-             "category": "购物", "icon": "🎁"},
-            {"date": "2026-02-13", "item": "打印资料", "amount": 8.50,
-             "category": "学习用品", "icon": "🖨️"},
-            {"date": "2026-02-12", "item": "食堂午餐", "amount": 14.00,
-             "category": "餐饮", "icon": "🍜"},
-            {"date": "2026-02-11", "item": "公交月卡", "amount": 50.00,
-             "category": "交通", "icon": "🚌"},
-            {"date": "2026-02-10", "item": "水果（苹果+香蕉）", "amount": 15.80,
-             "category": "餐饮", "icon": "🍎"},
-            {"date": "2026-02-09", "item": "理发", "amount": 35.00,
-             "category": "其他", "icon": "💇"},
-            {"date": "2026-02-08", "item": "网易云音乐会员", "amount": 15.00,
-             "category": "娱乐", "icon": "🎵"},
-            {"date": "2026-02-07", "item": "食堂晚餐", "amount": 16.00,
-             "category": "餐饮", "icon": "🍜"},
-            {"date": "2026-02-05", "item": "淘宝（数据线）", "amount": 19.90,
-             "category": "购物", "icon": "🛒"},
-            {"date": "2026-02-03", "item": "洗衣液+纸巾", "amount": 32.00,
-             "category": "其他", "icon": "🧴"},
-            {"date": "2026-02-01", "item": "开学聚餐AA", "amount": 68.00,
-             "category": "餐饮", "icon": "🍻"},
-        ],
+        "monthly_budget": budget,
+        "spent": spent,
+        "remaining": remaining,
+        "budget_usage_pct": usage_pct,
+        "daily_avg_spent": daily_avg,
+        "days_left_in_month": days_left,
+        "suggested_daily": suggested,
+        "categories": categories,
+        "recent_transactions": all_transactions,
     }
 
 def get_health() -> dict:
-    """获取健康状态 Mock 数据（Day 2 增强：7 天历史）"""
+    """获取健康状态 Mock 数据（Day 2 增强 + 持久化合并）"""
+    overrides = get_health_overrides()
+    base_water = 4
+    base_exercise_week = 1
+    base_mood = "😐 一般"
+    base_last_exercise = "2026-02-15"
+
+    water = base_water + overrides.get("water_cups", 0)
+    exercise_today = overrides.get("exercise_today", False)
+    exercise_week = base_exercise_week + (1 if exercise_today else 0)
+    mood = overrides.get("mood", base_mood)
+    last_exercise = datetime.now().strftime("%Y-%m-%d") if exercise_today else base_last_exercise
+
     return {
         "today_steps": 4523,
         "step_goal": 8000,
         "sleep_hours": 6.5,
         "sleep_quality": "一般",
-        "water_cups": 4,
+        "water_cups": water,
         "water_goal": 8,
-        "exercise_this_week": 1,
+        "exercise_this_week": exercise_week,
         "exercise_goal": 3,
-        "last_exercise": "2026-02-15",
-        "mood": "😐 一般",
+        "last_exercise": last_exercise,
+        "mood": mood,
         "checkin_streak": 5,
         "bmi": 21.3,
         "weight": 65.0,
@@ -141,8 +178,8 @@ def get_health() -> dict:
     }
 
 def get_todos() -> list[dict]:
-    """获取待办事项 Mock 数据"""
-    return [
+    """获取待办事项 Mock 数据，合并持久化的完成状态覆盖。"""
+    todos = [
         {"id": 1, "task": "提交高数作业", "deadline": "2026-02-20",
          "priority": "🔴 紧急", "done": False, "category": "学业"},
         {"id": 2, "task": "复习线性代数期中", "deadline": "2026-02-26",
@@ -158,6 +195,13 @@ def get_todos() -> list[dict]:
         {"id": 7, "task": "洗衣服", "deadline": "2026-02-20",
          "priority": "🟢 普通", "done": False, "category": "生活"},
     ]
+    # 合并持久化的完成状态
+    overrides = get_todo_overrides()
+    for t in todos:
+        tid = str(t["id"])
+        if tid in overrides:
+            t["done"] = overrides[tid]
+    return todos
 
 def get_upcoming_exams() -> list[dict]:
     """获取考试安排 Mock 数据"""
@@ -218,10 +262,10 @@ def get_alerts() -> list[dict]:
             "icon": "💰",
             "title": "预算告急",
             "message": (
-                f"本月预算已用 {finance["budget_usage_pct"]}%，"
-                f"剩余 ¥{finance["remaining"]:.0f}。"
-                f"剩余 {finance["days_left_in_month"]} 天，"
-                f"建议每天控制在 ¥{finance["suggested_daily"]:.0f} 以内。"
+                f"本月预算已用 {finance['budget_usage_pct']}%，"
+                f"剩余 ¥{finance['remaining']:.0f}。"
+                f"剩余 {finance['days_left_in_month']} 天，"
+                f"建议每天控制在 ¥{finance['suggested_daily']:.0f} 以内。"
             ),
             "severity": "high",
         })
@@ -232,11 +276,11 @@ def get_alerts() -> list[dict]:
             alerts.append({
                 "type": "exam",
                 "icon": "📝",
-                "title": f"{exam["course"]}考试倒计时",
+                "title": f"{exam['course']}考试倒计时",
                 "message": (
-                    f"{exam["course"]} {exam["type"]}还有 "
-                    f"**{exam["days_left"]} 天**！"
-                    f"地点：{exam["location"]}。建议制定复习计划。"
+                    f"{exam['course']} {exam['type']}还有 "
+                    f"**{exam['days_left']} 天**！"
+                    f"地点：{exam['location']}。建议制定复习计划。"
                 ),
                 "severity": "high" if exam["days_left"] <= 3 else "medium",
             })
@@ -252,7 +296,7 @@ def get_alerts() -> list[dict]:
             "title": "运动提醒",
             "message": (
                 f"已经 **{days_since_exercise} 天**没有运动了，"
-                f"本周运动 {health["exercise_this_week"]}/{health["exercise_goal"]} 次。"
+                f"本周运动 {health['exercise_this_week']}/{health['exercise_goal']} 次。"
                 f"去操场跑两圈或打会儿球吧！"
             ),
             "severity": "medium",
@@ -265,8 +309,8 @@ def get_alerts() -> list[dict]:
             "icon": "😴",
             "title": "睡眠不足",
             "message": (
-                f"昨晚只睡了 **{health["sleep_hours"]} 小时**，"
-                f"质量「{health["sleep_quality"]}」。"
+                f"昨晚只睡了 **{health['sleep_hours']} 小时**，"
+                f"质量「{health['sleep_quality']}」。"
                 f"建议今晚 11 点前上床休息哦。"
             ),
             "severity": "low",
@@ -279,8 +323,8 @@ def get_alerts() -> list[dict]:
             "icon": "💧",
             "title": "记得喝水",
             "message": (
-                f"今天才喝了 **{health["water_cups"]}** 杯水，"
-                f"目标 {health["water_goal"]} 杯。多喝水保持精力！"
+                f"今天才喝了 **{health['water_cups']}** 杯水，"
+                f"目标 {health['water_goal']} 杯。多喝水保持精力！"
             ),
             "severity": "low",
         })

@@ -1,21 +1,27 @@
 """
-UniLife OS — 主入口 (Day 2 增强版)
-新增：智能提醒卡片、待办勾选、健康打卡、快速记账、旅行面板、今日课程高亮
+UniLife OS — 主入口 (Phase 2: Agent + 持久化 + UI 优化)
+新增：AI Agent 工具调用、数据持久化、清除对话、API 缺失提示、工具调用可视化
 """
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
-from modules.chat_engine import chat_stream
+from modules.chat_engine import chat_stream, chat_agent
 from modules.mock_data import (
     get_finance, get_health, get_todos,
     get_upcoming_exams, get_schedule, get_today_schedule,
     get_travel_plan, get_alerts, build_context_summary,
 )
+from modules.tools import TOOL_SCHEMAS, TOOL_DISPLAY_NAMES, execute_tool
+from modules.persistence import (
+    update_todo_status, add_expense, increment_water,
+    log_exercise, log_mood, update_packing,
+    save_chat_history, load_chat_history, clear_chat_history,
+)
 from prompts.system_prompt import build_system_prompt
 from config import APP_NAME, APP_ICON, DEEPSEEK_API_KEY
 
-# ========== 页面配置 ========== 
+# ========== 页面配置 ==========
 st.set_page_config(
     page_title=APP_NAME,
     page_icon=APP_ICON,
@@ -23,7 +29,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ========== 自定义样式 ========== 
+# ========== 自定义样式 ==========
 st.markdown("""
 <style>
     .main-header {
@@ -69,23 +75,23 @@ st.markdown("""
 
 def _alert_card_html(severity, icon, title, message):
     return (
-        '<div class="alert-card-' + severity + '">
-        '<h4>' + icon + ' ' + title + '</h4>'
-        '<p>' + message + '</p>'
-        '</div>'
+        f'<div class="alert-card-{severity}">'
+        f'<h4>{icon} {title}</h4>'
+        f'<p>{message}</p>'
+        f'</div>'
     )
 
 
 def _travel_item_html(icon, time_str, activity, location, cost_str):
     return (
-        '<div class="travel-item">
-        '<strong>' + icon + ' ' + time_str + '</strong> — ' + activity + '<br>'
-        '<small>f4cd ' + location + ' 4b0 ' + cost_str + '</small>'
-        '</div>'
+        f'<div class="travel-item">'
+        f'<strong>{icon} {time_str}</strong> — {activity}<br>'
+        f'<small>📍 {location} 💰 {cost_str}</small>'
+        f'</div>'
     )
 
 
-# ========== 侧边栏 ========== 
+# ========== 侧边栏 ==========
 def render_sidebar():
     with st.sidebar:
         st.markdown("## " + APP_ICON + " " + APP_NAME)
@@ -96,6 +102,7 @@ def render_sidebar():
             st.success("🟢 AI 引擎已连接", icon="✅")
         else:
             st.error("🔴 请配置 DeepSeek API Key", icon="⚠️")
+            st.info("在项目根目录创建 `.env` 文件，添加：\n`DEEPSEEK_API_KEY=你的密钥`")
 
         st.divider()
 
@@ -152,8 +159,9 @@ def render_sidebar():
                 category = st.selectbox("分类", ["餐饮", "交通", "购物", "学习用品", "娱乐", "其他"])
                 submitted = st.form_submit_button("📝 记录")
                 if submitted and item and amount > 0:
+                    add_expense(item, amount, category)
                     st.success("✅ 已记录：" + item + " ¥" + str(amount) + "（" + category + "）")
-                    st.caption("⚠️ 当前为 Demo 模式，数据未持久化")
+                    st.toast("✅ 已保存", icon="💾")
 
         st.divider()
 
@@ -163,9 +171,10 @@ def render_sidebar():
 
         hcol1, hcol2 = st.columns(2)
         with hcol1:
-            st.metric("步数", "{:,}".format(health["today_steps"]), delta="目标 {:,.format(health["step_goal"])})")
+            st.metric("步数", "{:,}".format(health["today_steps"]),
+                      delta="目标 " + "{:,}".format(health["step_goal"]))
         with hcol2:
-            st.metric("睡眠", str(health["sleep_hours"]) + "h", delta=health["sleep_quality"])  
+            st.metric("睡眠", str(health["sleep_hours"]) + "h", delta=health["sleep_quality"])
 
         hcol3, hcol4 = st.columns(2)
         with hcol3:
@@ -181,13 +190,16 @@ def render_sidebar():
         btn_cols = st.columns(3)
         with btn_cols[0]:
             if st.button("💧+1杯"):
-                st.toast("💧 喝水 +1，继续保持！", icon="💧")
+                cups = increment_water()
+                st.toast("💧 喝水 +1，已喝 " + str(cups) + " 杯！", icon="💧")
         with btn_cols[1]:
             if st.button("🏃运动"):
-                st.toast("🏃 运动打卡成功！太棒了！", icon="🎉")
+                log_exercise()
+                st.toast("🏃 运动打卡成功！已保存", icon="🎉")
         with btn_cols[2]:
             if st.button("😊心情"):
-                st.toast("😊 心情记录成功！", icon="✨")
+                log_mood("😊 开心")
+                st.toast("😊 心情记录成功！已保存", icon="✨")
 
         st.divider()
 
@@ -209,6 +221,7 @@ def render_sidebar():
             )
             if checked != st.session_state.todo_done.get(t["id"]):
                 st.session_state.todo_done[t["id"]] = checked
+                update_todo_status(t["id"], checked)
                 if checked:
                     st.toast("✅ 完成：" + t["task"], icon="🎉")
 
@@ -227,8 +240,17 @@ def render_sidebar():
                 else:
                     st.info("🔵 " + msg)
 
+        st.divider()
 
-# ========== 主页面头部 ========== 
+        # 清除对话按钮
+        if st.button("🔄 清除对话", use_container_width=True):
+            st.session_state.messages = []
+            clear_chat_history()
+            st.toast("对话已清除", icon="🔄")
+            st.rerun()
+
+
+# ========== 主页面头部 ==========
 def render_header():
     st.markdown(
         '<div class="main-header">'
@@ -239,7 +261,7 @@ def render_header():
     )
 
 
-# ========== 智能提醒卡片 ========== 
+# ========== 智能提醒卡片 ==========
 def render_alerts():
     alerts = get_alerts()
     if not alerts:
@@ -261,17 +283,26 @@ def render_alerts():
                 st.markdown(html, unsafe_allow_html=True)
 
 
-# ========== Tab 1: AI 对话 ========== 
+# ========== Tab 1: AI 对话（Agent 模式）==========
 def render_chat_tab():
     render_alerts()
     st.divider()
 
+    # 启动时从持久化层加载聊天历史
     if "messages" not in st.session_state:
-        st.session_state.messages = []
+        saved = load_chat_history()
+        st.session_state.messages = saved if saved else []
 
     for msg in st.session_state.messages:
         avatar = "🎓" if msg["role"] == "assistant" else "🧑‍🎓"
         with st.chat_message(msg["role"], avatar=avatar):
+            # 展示工具调用记录（如果有）
+            tool_log = msg.get("tool_log")
+            if tool_log:
+                for tc in tool_log:
+                    display_name = TOOL_DISPLAY_NAMES.get(tc["name"], tc["name"])
+                    with st.expander("🔧 " + display_name, expanded=False):
+                        st.code(tc["result"], language=None)
             st.markdown(msg["content"])
 
     if not st.session_state.messages:
@@ -279,8 +310,15 @@ def render_chat_tab():
             welcome = _generate_welcome()
             st.markdown(welcome)
             st.session_state.messages.append({"role": "assistant", "content": welcome})
+            save_chat_history(st.session_state.messages)
 
-    if prompt := st.chat_input("和我聊聊吧，比如「这个月钱还够花吗？」"):
+    # API 缺失时禁用输入
+    if not DEEPSEEK_API_KEY:
+        st.chat_input("请先配置 DeepSeek API Key...", disabled=True)
+        st.warning("💡 在项目根目录的 `.env` 文件中配置 `DEEPSEEK_API_KEY` 后重启应用即可使用 AI 对话功能。")
+        return
+
+    if prompt := st.chat_input("和我聊聊吧，比如「我今天有什么课？」「帮我记一笔：奶茶 18 元」"):
         with st.chat_message("user", avatar="🧑‍🎓"):
             st.markdown(prompt)
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -288,12 +326,35 @@ def render_chat_tab():
         context = build_context_summary()
         system_prompt = build_system_prompt(context)
         full_messages = [{"role": "system", "content": system_prompt}]
-        full_messages.extend(st.session_state.messages)
+        # 只传纯文本消息给 API（过滤 tool_log 等额外字段）
+        for m in st.session_state.messages:
+            full_messages.append({"role": m["role"], "content": m["content"]})
 
         with st.chat_message("assistant", avatar="🎓"):
-            response = st.write_stream(chat_stream(full_messages))
+            with st.status("🤔 思考中...", expanded=True) as status:
+                response_text, tool_log = chat_agent(
+                    full_messages, TOOL_SCHEMAS, execute_tool
+                )
 
-        st.session_state.messages.append({"role": "assistant", "content": response})
+                # 展示工具调用过程
+                if tool_log:
+                    for tc in tool_log:
+                        display_name = TOOL_DISPLAY_NAMES.get(tc["name"], tc["name"])
+                        status.update(label="🔧 调用工具: " + display_name)
+                        with st.expander("🔧 " + display_name, expanded=False):
+                            st.code(tc["result"], language=None)
+                    status.update(label="✅ 完成", state="complete", expanded=False)
+                else:
+                    status.update(label="✅ 完成", state="complete", expanded=False)
+
+            st.markdown(response_text)
+
+        # 保存消息（附带工具调用记录）
+        msg_record = {"role": "assistant", "content": response_text}
+        if tool_log:
+            msg_record["tool_log"] = tool_log
+        st.session_state.messages.append(msg_record)
+        save_chat_history(st.session_state.messages)
 
 
 def _generate_welcome():
@@ -322,10 +383,11 @@ def _generate_welcome():
         )
 
     lines.append("\n有什么我能帮你的？随时聊！💬")
+    lines.append("\n💡 *试试问我：「我今天有什么课？」「帮我记一笔：奶茶 18 元」「分析一下这个月花销」*")
     return "\n".join(lines)
 
 
-# ========== Tab 2: 数据看板 ========== 
+# ========== Tab 2: 数据看板 ==========
 def render_dashboard_tab():
     render_alerts()
     st.divider()
@@ -402,4 +464,108 @@ def render_dashboard_tab():
             df_health = df_health.sort_values("date")
 
             st.markdown("**👣 每日步数**")
-            st.line_chart(df_health.set_index("date")[
+            fig_steps = px.line(
+                df_health,
+                x="date",
+                y="steps",
+                markers=True,
+                labels={"date": "日期", "steps": "步数"},
+            )
+            fig_steps.add_hline(
+                y=health["step_goal"],
+                line_dash="dash",
+                line_color="red",
+                annotation_text="目标 " + "{:,}".format(health["step_goal"]),
+            )
+            fig_steps.update_layout(
+                margin=dict(t=20, b=20, l=20, r=20),
+                height=250,
+                showlegend=False,
+            )
+            st.plotly_chart(fig_steps, use_container_width=True)
+
+            st.markdown("**😴 每日睡眠**")
+            fig_sleep = px.bar(
+                df_health,
+                x="date",
+                y="sleep",
+                labels={"date": "日期", "sleep": "睡眠(小时)"},
+                color="sleep",
+                color_continuous_scale=["#ff6b6b", "#ffa502", "#7bed9f"],
+            )
+            fig_sleep.add_hline(
+                y=7,
+                line_dash="dash",
+                line_color="green",
+                annotation_text="建议 7h",
+            )
+            fig_sleep.update_layout(
+                margin=dict(t=20, b=20, l=20, r=20),
+                height=250,
+                showlegend=False,
+                coloraxis_showscale=False,
+            )
+            st.plotly_chart(fig_sleep, use_container_width=True)
+        else:
+            st.info("暂无历史健康数据")
+
+    with col4:
+        st.markdown("#### 🗺️ 旅行计划")
+        travel = get_travel_plan()
+
+        st.markdown(
+            "**" + travel["trip_name"] + "**  \n"
+            "📆 " + travel["date"] + " | 👥 " + "、".join(travel["companions"])
+        )
+
+        t_m1, t_m2 = st.columns(2)
+        with t_m1:
+            st.metric("预算", "¥" + str(int(travel["budget"])))
+        with t_m2:
+            st.metric(
+                "预估花费",
+                "¥" + str(int(travel["total_estimated_cost"])),
+                delta="剩余 ¥" + str(int(travel["budget"] - travel["total_estimated_cost"])),
+            )
+
+        st.markdown("**📍 行程时间线**")
+        for stop in travel["itinerary"]:
+            cost_str = "¥" + str(int(stop["cost"])) if stop["cost"] > 0 else "免费"
+            html = _travel_item_html(
+                stop["icon"], stop["time"], stop["activity"],
+                stop["location"], cost_str,
+            )
+            st.markdown(html, unsafe_allow_html=True)
+
+        st.markdown("**🎒 必带清单**")
+        from modules.persistence import get_packing_checked
+        packing_checked = get_packing_checked()
+        for item in travel["packing_list"]:
+            checked = st.checkbox(
+                item,
+                value=(item in packing_checked),
+                key="pack_" + item,
+            )
+            # 检测变化并持久化
+            was_checked = item in packing_checked
+            if checked != was_checked:
+                update_packing(item, checked)
+                st.toast("🎒 已保存", icon="💾")
+
+
+# ========== 主入口 ==========
+def main():
+    render_sidebar()
+    render_header()
+
+    tab_chat, tab_dashboard = st.tabs(["💬 AI 对话", "📊 数据看板"])
+
+    with tab_chat:
+        render_chat_tab()
+
+    with tab_dashboard:
+        render_dashboard_tab()
+
+
+if __name__ == "__main__":
+    main()
