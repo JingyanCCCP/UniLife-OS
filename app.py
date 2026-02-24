@@ -2,11 +2,12 @@
 UniLife OS — 主入口 (Phase 2: Agent + 持久化 + UI 优化)
 新增：AI Agent 工具调用、数据持久化、清除对话、API 缺失提示、工具调用可视化
 """
+import html as html_mod
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
-from modules.chat_engine import chat_stream, chat_agent
+from modules.chat_engine import chat_agent, trim_messages
 from modules.mock_data import (
     get_finance, get_health, get_todos,
     get_upcoming_exams, get_schedule, get_today_schedule,
@@ -17,6 +18,7 @@ from modules.persistence import (
     update_todo_status, add_expense, increment_water,
     log_exercise, log_mood, update_packing,
     save_chat_history, load_chat_history, clear_chat_history,
+    get_packing_checked, set_budget,
 )
 from prompts.system_prompt import build_system_prompt
 from config import APP_NAME, APP_ICON, DEEPSEEK_API_KEY
@@ -42,15 +44,15 @@ st.markdown("""
     .main-header h1 { margin: 0; font-size: 1.8rem; }
     .main-header p  { margin: 0.3rem 0 0; opacity: 0.9; font-size: 0.95rem; }
     .alert-card-high {
-        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+        background: linear-gradient(135deg, rgba(220,53,69,0.85) 0%, rgba(176,42,55,0.92) 100%);
         padding: 1rem 1.2rem; border-radius: 10px; color: white; margin-bottom: 0.5rem;
     }
     .alert-card-medium {
-        background: linear-gradient(135deg, #ffa502 0%, #ff6348 100%);
+        background: linear-gradient(135deg, rgba(200,133,51,0.85) 0%, rgba(160,82,45,0.92) 100%);
         padding: 1rem 1.2rem; border-radius: 10px; color: white; margin-bottom: 0.5rem;
     }
     .alert-card-low {
-        background: linear-gradient(135deg, #7bed9f 0%, #2ed573 100%);
+        background: linear-gradient(135deg, rgba(39,174,96,0.85) 0%, rgba(30,132,73,0.92) 100%);
         padding: 1rem 1.2rem; border-radius: 10px; color: white; margin-bottom: 0.5rem;
     }
     .alert-card-high h4, .alert-card-medium h4, .alert-card-low h4 {
@@ -64,13 +66,85 @@ st.markdown("""
         padding: 0.5rem 0 0.5rem 1rem;
         margin-bottom: 0.3rem;
     }
+    /* 侧边栏：淡紫渐变叠在主题原生底色上 */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+        background-image: linear-gradient(180deg,
+            rgba(129,140,248,0.26) 0%,
+            rgba(139,92,246,0.18) 50%,
+            rgba(196,181,253,0.12) 100%);
     }
-    [data-testid="stSidebar"] * { color: #e0e0e0 !important; }
+    /* 指标卡片 */
+    [data-testid="stSidebar"] [data-testid="stMetric"] {
+        background: rgba(255,255,255,0.30);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        border: 1.5px solid rgba(139,92,246,0.28);
+        border-radius: 10px;
+        padding: 0.5rem 0.75rem;
+        box-shadow: 0 2px 12px rgba(139,92,246,0.14);
+    }
+    /* 折叠面板 */
+    [data-testid="stSidebar"] [data-testid="stExpander"] {
+        background: rgba(255,255,255,0.20);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        border: 1.5px solid rgba(139,92,246,0.22);
+        border-radius: 10px;
+    }
+    /* 侧边栏按钮：紫调统一风格 */
+    [data-testid="stSidebar"] .stButton > button {
+        border: 1.5px solid rgba(139,92,246,0.25);
+        border-radius: 10px;
+        background: rgba(139,92,246,0.08);
+        transition: all 0.15s ease;
+    }
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background: rgba(139,92,246,0.18);
+        border-color: rgba(139,92,246,0.40);
+        box-shadow: 0 2px 8px rgba(139,92,246,0.15);
+    }
+    /* Tab 导航：胶囊式按钮 */
+    [data-testid="stTabs"] [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+        border-bottom: none !important;
+    }
+    [data-testid="stTabs"] button[data-baseweb="tab"] {
+        border-radius: 10px;
+        padding: 0.55rem 1.8rem;
+        font-weight: 600;
+        border: 1px solid rgba(102,126,234,0.25);
+    }
+    [data-testid="stTabs"] button[aria-selected="true"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+        border: none !important;
+        box-shadow: 0 4px 12px rgba(102,126,234,0.30);
+    }
     .stChatMessage { border-radius: 12px !important; }
 </style>
 """, unsafe_allow_html=True)
+
+# ========== PWA 支持 ==========
+st.markdown("""
+<link rel="manifest" href="app/static/manifest.json">
+<meta name="theme-color" content="#667eea">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="app/static/icon.svg">
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('app/static/sw.js', {scope: '/'})
+        .then(function(reg) { console.log('SW registered:', reg.scope); })
+        .catch(function(err) { console.log('SW scope limited to static path:', err); });
+}
+</script>
+""", unsafe_allow_html=True)
+
+
+def _toast_and_rerun(msg: str, icon: str = "✅"):
+    """暂存 toast 消息到 session_state，rerun 后在 main() 顶部显示。"""
+    st.session_state._pending_toast = (msg, icon)
+    st.rerun()
 
 
 def _alert_card_html(severity, icon, title, message):
@@ -143,9 +217,11 @@ def render_sidebar():
         with st.expander("📋 最近消费流水"):
             for t in finance["recent_transactions"][:8]:
                 t_icon = t.get("icon", "💳")
+                safe_item = html_mod.escape(t["item"])
+                safe_cat = html_mod.escape(t["category"])
                 line = (
-                    t_icon + " **" + t["item"] + "** — ¥" + str(t["amount"])
-                    + "  \n<small>" + t["date"] + " · " + t["category"] + "</small>"
+                    t_icon + " <strong>" + safe_item + "</strong> — ¥" + str(t["amount"])
+                    + "  <br><small>" + t["date"] + " · " + safe_cat + "</small>"
                 )
                 st.markdown(line, unsafe_allow_html=True)
 
@@ -158,10 +234,21 @@ def render_sidebar():
                     amount = st.number_input("金额", min_value=0.0, step=0.5, format="%.1f")
                 category = st.selectbox("分类", ["餐饮", "交通", "购物", "学习用品", "娱乐", "其他"])
                 submitted = st.form_submit_button("📝 记录")
-                if submitted and item and amount > 0:
-                    add_expense(item, amount, category)
-                    st.success("✅ 已记录：" + item + " ¥" + str(amount) + "（" + category + "）")
-                    st.toast("✅ 已保存", icon="💾")
+                if submitted:
+                    if not item or amount <= 0:
+                        st.warning("⚠️ 请填写消费项目并输入大于 0 的金额")
+                    else:
+                        add_expense(item, amount, category)
+                        _toast_and_rerun("✅ 已记录：" + item + " ¥" + str(amount) + "（" + category + "）", "💾")
+
+        with st.expander("⚙️ 预算设置"):
+            new_budget = st.number_input(
+                "月预算 (元)", value=float(finance["monthly_budget"]),
+                min_value=100.0, step=100.0, format="%.0f",
+            )
+            if st.button("保存预算"):
+                set_budget(new_budget)
+                _toast_and_rerun("预算已更新为 ¥" + str(int(new_budget)), "💰")
 
         st.divider()
 
@@ -190,40 +277,68 @@ def render_sidebar():
         btn_cols = st.columns(3)
         with btn_cols[0]:
             if st.button("💧+1杯"):
-                cups = increment_water()
-                st.toast("💧 喝水 +1，已喝 " + str(cups) + " 杯！", icon="💧")
+                increment_water()
+                total = get_health()["water_cups"]
+                st.toast("💧 喝水 +1，已喝 " + str(total) + " 杯！", icon="💧")
         with btn_cols[1]:
-            if st.button("🏃运动"):
+            exercise_done = health.get("last_exercise") == datetime.now().strftime("%Y-%m-%d")
+            btn_label = "✅ 已打卡" if exercise_done else "🏃运动"
+            if st.button(btn_label, disabled=exercise_done):
                 log_exercise()
-                st.toast("🏃 运动打卡成功！已保存", icon="🎉")
+                _toast_and_rerun("🏃 运动打卡成功！已保存", "🎉")
         with btn_cols[2]:
-            if st.button("😊心情"):
-                log_mood("😊 开心")
-                st.toast("😊 心情记录成功！已保存", icon="✨")
+            mood_options = ["😊 开心", "🙂 还行", "😐 一般", "😢 难过", "😫 疲惫"]
+            selected_mood = st.selectbox("心情", mood_options, label_visibility="collapsed", key="mood_select")
+            if st.button("📝记心情"):
+                log_mood(selected_mood)
+                _toast_and_rerun(selected_mood + " 心情记录成功！", "✨")
 
         st.divider()
 
         # 待办事项（可勾选）
         todos = get_todos()
         pending = [t for t in todos if not t["done"]]
+        done_todos = [t for t in todos if t["done"]]
 
         st.markdown("### 📝 待办事项 (" + str(len(pending)) + ")")
 
-        if "todo_done" not in st.session_state:
-            st.session_state.todo_done = {t["id"]: t["done"] for t in todos}
+        # 每次渲染同步最新待办状态（兼容 Agent 新增/修改的待办）
+        st.session_state.todo_done = {t["id"]: t["done"] for t in todos}
 
-        for t in todos:
+        # 只显示未完成的待办
+        for t in pending:
             label = t["priority"] + " " + t["task"] + "（" + t["deadline"] + "）"
             checked = st.checkbox(
                 label,
-                value=st.session_state.todo_done.get(t["id"], t["done"]),
+                value=False,
                 key="todo_" + str(t["id"]),
             )
-            if checked != st.session_state.todo_done.get(t["id"]):
-                st.session_state.todo_done[t["id"]] = checked
-                update_todo_status(t["id"], checked)
-                if checked:
-                    st.toast("✅ 完成：" + t["task"], icon="🎉")
+            if checked and not st.session_state.todo_done.get(t["id"]):
+                st.session_state.todo_done[t["id"]] = True
+                update_todo_status(t["id"], True)
+                _toast_and_rerun("✅ 完成：" + t["task"], "🎉")
+
+        if not pending:
+            st.info("🎉 所有待办已完成！")
+
+        # 已完成待办折叠区，图标置灰
+        if done_todos:
+            _gray_priority = {"🔴": "🔘", "🟡": "🔘", "🟢": "🔘"}
+            with st.expander("✅ 已完成 (" + str(len(done_todos)) + ")", expanded=False):
+                for t in done_todos:
+                    gray_label = t["priority"]
+                    for color, gray in _gray_priority.items():
+                        gray_label = gray_label.replace(color, gray)
+                    label = gray_label + " ~~" + t["task"] + "~~（" + t["deadline"] + "）"
+                    unchecked = st.checkbox(
+                        label,
+                        value=True,
+                        key="todo_" + str(t["id"]),
+                    )
+                    if not unchecked and st.session_state.todo_done.get(t["id"], True):
+                        st.session_state.todo_done[t["id"]] = False
+                        update_todo_status(t["id"], False)
+                        _toast_and_rerun("↩️ 已恢复：" + t["task"], "🔄")
 
         st.divider()
 
@@ -232,8 +347,11 @@ def render_sidebar():
         if exams:
             st.markdown("### 🎯 考试倒计时")
             for e in exams:
-                msg = "**" + e["course"] + "** — " + str(e["days_left"]) + " 天后\n📍 " + e["location"]
-                if e["days_left"] <= 3:
+                countdown = "今天！" if e["days_left"] == 0 else str(e["days_left"]) + " 天后"
+                msg = "**" + e["course"] + "** — " + countdown + "\n📍 " + e["location"]
+                if e["days_left"] == 0:
+                    st.error("🔴 " + msg)
+                elif e["days_left"] <= 3:
                     st.error("🔴 " + msg + "！")
                 elif e["days_left"] <= 7:
                     st.warning("🟡 " + msg)
@@ -246,8 +364,7 @@ def render_sidebar():
         if st.button("🔄 清除对话", use_container_width=True):
             st.session_state.messages = []
             clear_chat_history()
-            st.toast("对话已清除", icon="🔄")
-            st.rerun()
+            _toast_and_rerun("对话已清除", "🔄")
 
 
 # ========== 主页面头部 ==========
@@ -285,9 +402,6 @@ def render_alerts():
 
 # ========== Tab 1: AI 对话（Agent 模式）==========
 def render_chat_tab():
-    render_alerts()
-    st.divider()
-
     # 启动时从持久化层加载聊天历史
     if "messages" not in st.session_state:
         saved = load_chat_history()
@@ -309,8 +423,8 @@ def render_chat_tab():
         with st.chat_message("assistant", avatar="🎓"):
             welcome = _generate_welcome()
             st.markdown(welcome)
+            # 欢迎消息不持久化，每次新会话动态生成以避免隔天数据陈旧
             st.session_state.messages.append({"role": "assistant", "content": welcome})
-            save_chat_history(st.session_state.messages)
 
     # API 缺失时禁用输入
     if not DEEPSEEK_API_KEY:
@@ -329,6 +443,8 @@ def render_chat_tab():
         # 只传纯文本消息给 API（过滤 tool_log 等额外字段）
         for m in st.session_state.messages:
             full_messages.append({"role": m["role"], "content": m["content"]})
+        # 裁剪上下文，防止超出模型窗口
+        full_messages = trim_messages(full_messages)
 
         with st.chat_message("assistant", avatar="🎓"):
             with st.status("🤔 思考中...", expanded=True) as status:
@@ -389,9 +505,6 @@ def _generate_welcome():
 
 # ========== Tab 2: 数据看板 ==========
 def render_dashboard_tab():
-    render_alerts()
-    st.divider()
-
     st.markdown("### 📊 个人数据看板")
 
     col1, col2 = st.columns(2)
@@ -420,8 +533,10 @@ def render_dashboard_tab():
             legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
             margin=dict(t=20, b=20, l=20, r=20),
             height=350,
+            dragmode=False,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True,
+            config={"displayModeBar": False, "scrollZoom": False})
 
         st.markdown("**📈 消费指标**")
         m1, m2, m3 = st.columns(3)
@@ -447,7 +562,6 @@ def render_dashboard_tab():
             ),
             use_container_width=True,
             hide_index=True,
-            height=350,
         )
 
     st.divider()
@@ -481,8 +595,10 @@ def render_dashboard_tab():
                 margin=dict(t=20, b=20, l=20, r=20),
                 height=250,
                 showlegend=False,
+                dragmode=False,
             )
-            st.plotly_chart(fig_steps, use_container_width=True)
+            st.plotly_chart(fig_steps, use_container_width=True,
+                config={"displayModeBar": False, "scrollZoom": False})
 
             st.markdown("**😴 每日睡眠**")
             fig_sleep = px.bar(
@@ -504,8 +620,10 @@ def render_dashboard_tab():
                 height=250,
                 showlegend=False,
                 coloraxis_showscale=False,
+                dragmode=False,
             )
-            st.plotly_chart(fig_sleep, use_container_width=True)
+            st.plotly_chart(fig_sleep, use_container_width=True,
+                config={"displayModeBar": False, "scrollZoom": False})
         else:
             st.info("暂无历史健康数据")
 
@@ -513,50 +631,71 @@ def render_dashboard_tab():
         st.markdown("#### 🗺️ 旅行计划")
         travel = get_travel_plan()
 
-        st.markdown(
-            "**" + travel["trip_name"] + "**  \n"
-            "📆 " + travel["date"] + " | 👥 " + "、".join(travel["companions"])
-        )
-
-        t_m1, t_m2 = st.columns(2)
-        with t_m1:
-            st.metric("预算", "¥" + str(int(travel["budget"])))
-        with t_m2:
-            st.metric(
-                "预估花费",
-                "¥" + str(int(travel["total_estimated_cost"])),
-                delta="剩余 ¥" + str(int(travel["budget"] - travel["total_estimated_cost"])),
+        if travel is None:
+            st.info("暂无旅行计划，可以通过 AI 对话创建新的旅行计划。")
+        else:
+            companions = travel.get("companions", [])
+            if isinstance(companions, str):
+                companions_str = companions
+            else:
+                companions_str = "、".join(companions) if companions else "独自出行"
+            st.markdown(
+                "**" + travel["trip_name"] + "**  \n"
+                "📆 " + travel["date"] + " | 👥 " + companions_str
             )
 
-        st.markdown("**📍 行程时间线**")
-        for stop in travel["itinerary"]:
-            cost_str = "¥" + str(int(stop["cost"])) if stop["cost"] > 0 else "免费"
-            html = _travel_item_html(
-                stop["icon"], stop["time"], stop["activity"],
-                stop["location"], cost_str,
-            )
-            st.markdown(html, unsafe_allow_html=True)
+            t_m1, t_m2 = st.columns(2)
+            with t_m1:
+                st.metric("预算", "¥" + str(int(travel["budget"])))
+            with t_m2:
+                st.metric(
+                    "预估花费",
+                    "¥" + str(int(travel["total_estimated_cost"])),
+                    delta="剩余 ¥" + str(int(travel["budget"] - travel["total_estimated_cost"])),
+                )
 
-        st.markdown("**🎒 必带清单**")
-        from modules.persistence import get_packing_checked
-        packing_checked = get_packing_checked()
-        for item in travel["packing_list"]:
-            checked = st.checkbox(
-                item,
-                value=(item in packing_checked),
-                key="pack_" + item,
-            )
-            # 检测变化并持久化
-            was_checked = item in packing_checked
-            if checked != was_checked:
-                update_packing(item, checked)
-                st.toast("🎒 已保存", icon="💾")
+            st.markdown("**📍 行程时间线**")
+            if travel["itinerary"]:
+                for stop in travel["itinerary"]:
+                    cost_str = "¥" + str(int(stop["cost"])) if stop["cost"] > 0 else "免费"
+                    html = _travel_item_html(
+                        stop.get("icon", "📍"), stop["time"], stop["activity"],
+                        stop["location"], cost_str,
+                    )
+                    st.markdown(html, unsafe_allow_html=True)
+            else:
+                st.caption("暂无行程，可通过 AI 对话添加行程站点")
+
+            packing_list = travel.get("packing_list", [])
+            if packing_list:
+                st.markdown("**🎒 必带清单**")
+                packing_checked = get_packing_checked()
+                for item in packing_list:
+                    pack_key = "pack_" + item
+                    is_checked = item in packing_checked
+                    checked = st.checkbox(item, value=is_checked, key=pack_key)
+                    # 只在用户主动交互（值变化）时持久化
+                    if checked and not is_checked:
+                        update_packing(item, True)
+                        _toast_and_rerun("🎒 已保存", "💾")
+                    elif not checked and is_checked:
+                        update_packing(item, False)
+                        _toast_and_rerun("🎒 已取消", "💾")
 
 
 # ========== 主入口 ==========
 def main():
+    # 显示上次 rerun 前暂存的 toast 消息
+    if "_pending_toast" in st.session_state:
+        msg, icon = st.session_state._pending_toast
+        st.toast(msg, icon=icon)
+        del st.session_state._pending_toast
+
     render_sidebar()
     render_header()
+
+    # 智能提醒在 Tab 上方，全局可见
+    render_alerts()
 
     tab_chat, tab_dashboard = st.tabs(["💬 AI 对话", "📊 数据看板"])
 

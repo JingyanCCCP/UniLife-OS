@@ -1,62 +1,41 @@
 """
 UniLife OS — DeepSeek 对话引擎（Agent 增强版）
-支持 function calling 的 Agent 循环，同时保留原有流式对话。
+支持 function calling 的 Agent 循环。
 """
+from __future__ import annotations
+
 import json
 from openai import OpenAI
-import streamlit as st
 from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
 
 MAX_TOOL_ROUNDS = 5  # 防止无限循环
+MAX_CONTEXT_MESSAGES = 20  # 非 system 消息上限，防止超出上下文窗口
+
+# 模块级单例客户端，避免每次调用都创建新连接
+_client: OpenAI | None = None
+
+
+def trim_messages(messages: list[dict], max_messages: int = MAX_CONTEXT_MESSAGES) -> list[dict]:
+    """
+    裁剪消息列表：保留所有 system 消息 + 最近 max_messages 条非 system 消息。
+    用于防止对话历史超出模型上下文窗口。
+    """
+    system_msgs = [m for m in messages if m.get("role") == "system"]
+    non_system_msgs = [m for m in messages if m.get("role") != "system"]
+    if len(non_system_msgs) > max_messages:
+        non_system_msgs = non_system_msgs[-max_messages:]
+    return system_msgs + non_system_msgs
 
 
 def get_client() -> OpenAI:
-    """获取 DeepSeek API 客户端（兼容 OpenAI SDK）"""
-    return OpenAI(
-        api_key=DEEPSEEK_API_KEY,
-        base_url=DEEPSEEK_BASE_URL,
-    )
-
-
-def chat_stream(messages: list[dict]):
-    """
-    流式调用 DeepSeek-V3，返回生成器用于 Streamlit 流式输出。
-    保留作为无工具的 fallback。
-    """
-    client = get_client()
-
-    try:
-        response = client.chat.completions.create(
-            model=DEEPSEEK_MODEL,
-            messages=messages,
-            temperature=0.8,
-            max_tokens=1024,
-            stream=True,
+    """获取 DeepSeek API 客户端（单例复用连接池）"""
+    global _client
+    if _client is None:
+        _client = OpenAI(
+            api_key=DEEPSEEK_API_KEY,
+            base_url=DEEPSEEK_BASE_URL,
         )
-        for chunk in response:
-            if chunk.choices[0].delta.content is not None:
-                yield chunk.choices[0].delta.content
-
-    except Exception as e:
-        yield f"⚠️ 连接出了点问题：{str(e)}\n请检查 API Key 是否正确配置。"
-
-
-def chat_once(messages: list[dict]) -> str:
-    """
-    非流式调用，用于后台分析（如主动提醒生成）。
-    """
-    client = get_client()
-
-    try:
-        response = client.chat.completions.create(
-            model=DEEPSEEK_MODEL,
-            messages=messages,
-            temperature=0.7,
-            max_tokens=512,
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"⚠️ 分析服务暂时不可用：{str(e)}"
+    return _client
 
 
 def _call_with_tools(messages: list[dict], tools: list[dict]) -> object:
@@ -85,7 +64,7 @@ def chat_agent(messages: list[dict], tools: list[dict], execute_tool_fn) -> tupl
         - final_text: 最终回复文本
         - tool_call_log: 工具调用记录列表 [{"name": ..., "args": ..., "result": ...}, ...]
     """
-    working_messages = list(messages)
+    working_messages = list(trim_messages(messages))
     tool_call_log = []
 
     for _round in range(MAX_TOOL_ROUNDS):
@@ -99,7 +78,11 @@ def chat_agent(messages: list[dict], tools: list[dict], execute_tool_fn) -> tupl
 
         # 没有工具调用 → 返回最终文本
         if not assistant_msg.tool_calls:
-            return assistant_msg.content or "", tool_call_log
+            text = assistant_msg.content or ""
+            # 检测输出截断
+            if choice.finish_reason == "length":
+                text += "\n\n⚠️ *回复过长被截断，可以让我继续说~*"
+            return text, tool_call_log
 
         # 有工具调用 → 执行并继续
         # 将 assistant 消息（含 tool_calls）加入对话

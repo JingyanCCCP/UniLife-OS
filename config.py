@@ -17,4 +17,3 @@ DEEPSEEK_MODEL = "deepseek-chat"  # DeepSeek-V3
 # 应用配置
 APP_NAME = "UniLife OS"
 APP_ICON = "🎓"
-APP_DESCRIPTION = "你的大学生活智能操作系统"
