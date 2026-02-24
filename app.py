@@ -291,7 +291,7 @@ def render_sidebar():
             if st.button("💧+1杯"):
                 increment_water()
                 total = get_health()["water_cups"]
-                st.toast("💧 喝水 +1，已喝 " + str(total) + " 杯！", icon="💧")
+                _toast_and_rerun("💧 喝水 +1，已喝 " + str(total) + " 杯！", "💧")
         with btn_cols[1]:
             exercise_done = health.get("last_exercise") == datetime.now().strftime("%Y-%m-%d")
             btn_label = "✅ 已打卡" if exercise_done else "🏃运动"
