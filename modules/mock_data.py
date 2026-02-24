@@ -236,7 +236,7 @@ def get_health() -> dict:
     }
 
 def get_todos() -> list[dict]:
-    """获取待办事项 Mock 数据，合并持久化的完成状态覆盖。"""
+    """获取待办事项 Mock 数据，合并持久化的完成状态覆盖。截止日期超过 7 天的待办自动移除。"""
     todos = [
         {"id": 1, "task": "提交高数作业", "deadline": "2026-02-20",
          "priority": "🔴 紧急", "done": False, "category": "学业"},
@@ -267,6 +267,11 @@ def get_todos() -> list[dict]:
         if tid in overrides:
             t["done"] = overrides[tid]
     todos.extend(extra)
+
+    # 过滤掉截止日期超过 7 天的待办（自动清理过期项）
+    today = datetime.now().date()
+    cutoff = today - timedelta(days=7)
+    todos = [t for t in todos if datetime.strptime(t["deadline"], "%Y-%m-%d").date() >= cutoff]
 
     return todos
 

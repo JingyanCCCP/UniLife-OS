@@ -36,13 +36,16 @@ st.markdown("""
 <style>
     .main-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1.5rem 2rem;
-        border-radius: 12px;
+        padding: 0.7rem 1.5rem;
+        border-radius: 10px;
         color: white;
-        margin-bottom: 1rem;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
     }
-    .main-header h1 { margin: 0; font-size: 1.8rem; }
-    .main-header p  { margin: 0.3rem 0 0; opacity: 0.9; font-size: 0.95rem; }
+    .main-header h1 { margin: 0; font-size: 1.3rem; white-space: nowrap; }
+    .main-header p  { margin: 0; opacity: 0.85; font-size: 0.85rem; }
     .alert-card-high {
         background: linear-gradient(135deg, rgba(220,53,69,0.85) 0%, rgba(176,42,55,0.92) 100%);
         padding: 1rem 1.2rem; border-radius: 10px; color: white; margin-bottom: 0.5rem;
@@ -121,6 +124,15 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(102,126,234,0.30);
     }
     .stChatMessage { border-radius: 12px !important; }
+    /* 聊天滚动容器：去除默认边框，自适应高度 */
+    [data-testid="stTabs"] [data-testid="stVerticalBlockBorderWrapper"]:has([data-testid="stChatMessage"]) {
+        border: none !important;
+        height: calc(100vh - 280px) !important;
+        min-height: 350px;
+    }
+    [data-testid="stTabs"] [data-testid="stVerticalBlockBorderWrapper"]:has([data-testid="stChatMessage"]) > div {
+        height: 100% !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -400,41 +412,45 @@ def render_alerts():
                 st.markdown(html, unsafe_allow_html=True)
 
 
-# ========== Tab 1: AI 对话（Agent 模式）==========
+# ========== AI 对话（Agent 模式）==========
 def render_chat_tab():
     # 启动时从持久化层加载聊天历史
     if "messages" not in st.session_state:
         saved = load_chat_history()
         st.session_state.messages = saved if saved else []
 
-    for msg in st.session_state.messages:
-        avatar = "🎓" if msg["role"] == "assistant" else "🧑‍🎓"
-        with st.chat_message(msg["role"], avatar=avatar):
-            # 展示工具调用记录（如果有）
-            tool_log = msg.get("tool_log")
-            if tool_log:
-                for tc in tool_log:
-                    display_name = TOOL_DISPLAY_NAMES.get(tc["name"], tc["name"])
-                    with st.expander("🔧 " + display_name, expanded=False):
-                        st.code(tc["result"], language=None)
-            st.markdown(msg["content"])
+    # 可滚动消息区域（CSS 会覆盖高度为 calc(100vh - 280px)）
+    chat_container = st.container(height=500)
 
-    if not st.session_state.messages:
-        with st.chat_message("assistant", avatar="🎓"):
-            welcome = _generate_welcome()
-            st.markdown(welcome)
-            # 欢迎消息不持久化，每次新会话动态生成以避免隔天数据陈旧
-            st.session_state.messages.append({"role": "assistant", "content": welcome})
+    with chat_container:
+        for msg in st.session_state.messages:
+            avatar = "🎓" if msg["role"] == "assistant" else "🧑‍🎓"
+            with st.chat_message(msg["role"], avatar=avatar):
+                # 展示工具调用记录（如果有）
+                tool_log = msg.get("tool_log")
+                if tool_log:
+                    for tc in tool_log:
+                        display_name = TOOL_DISPLAY_NAMES.get(tc["name"], tc["name"])
+                        with st.expander("🔧 " + display_name, expanded=False):
+                            st.code(tc["result"], language=None)
+                st.markdown(msg["content"])
 
-    # API 缺失时禁用输入
+        if not st.session_state.messages:
+            with st.chat_message("assistant", avatar="🎓"):
+                welcome = _generate_welcome()
+                st.markdown(welcome)
+                st.session_state.messages.append({"role": "assistant", "content": welcome})
+
+    # 输入框在容器外部 → 始终可见
     if not DEEPSEEK_API_KEY:
-        st.chat_input("请先配置 DeepSeek API Key...", disabled=True)
         st.warning("💡 在项目根目录的 `.env` 文件中配置 `DEEPSEEK_API_KEY` 后重启应用即可使用 AI 对话功能。")
+        st.chat_input("请先配置 DeepSeek API Key...", disabled=True)
         return
 
     if prompt := st.chat_input("和我聊聊吧，比如「我今天有什么课？」「帮我记一笔：奶茶 18 元」"):
-        with st.chat_message("user", avatar="🧑‍🎓"):
-            st.markdown(prompt)
+        with chat_container:
+            with st.chat_message("user", avatar="🧑‍🎓"):
+                st.markdown(prompt)
         st.session_state.messages.append({"role": "user", "content": prompt})
 
         context = build_context_summary()
@@ -446,24 +462,25 @@ def render_chat_tab():
         # 裁剪上下文，防止超出模型窗口
         full_messages = trim_messages(full_messages)
 
-        with st.chat_message("assistant", avatar="🎓"):
-            with st.status("🤔 思考中...", expanded=True) as status:
-                response_text, tool_log = chat_agent(
-                    full_messages, TOOL_SCHEMAS, execute_tool
-                )
+        with chat_container:
+            with st.chat_message("assistant", avatar="🎓"):
+                with st.status("🤔 思考中...", expanded=True) as status:
+                    response_text, tool_log = chat_agent(
+                        full_messages, TOOL_SCHEMAS, execute_tool
+                    )
 
-                # 展示工具调用过程
-                if tool_log:
-                    for tc in tool_log:
-                        display_name = TOOL_DISPLAY_NAMES.get(tc["name"], tc["name"])
-                        status.update(label="🔧 调用工具: " + display_name)
-                        with st.expander("🔧 " + display_name, expanded=False):
-                            st.code(tc["result"], language=None)
-                    status.update(label="✅ 完成", state="complete", expanded=False)
-                else:
-                    status.update(label="✅ 完成", state="complete", expanded=False)
+                    # 展示工具调用过程
+                    if tool_log:
+                        for tc in tool_log:
+                            display_name = TOOL_DISPLAY_NAMES.get(tc["name"], tc["name"])
+                            status.update(label="🔧 调用工具: " + display_name)
+                            with st.expander("🔧 " + display_name, expanded=False):
+                                st.code(tc["result"], language=None)
+                        status.update(label="✅ 完成", state="complete", expanded=False)
+                    else:
+                        status.update(label="✅ 完成", state="complete", expanded=False)
 
-            st.markdown(response_text)
+                st.markdown(response_text)
 
         # 保存消息（附带工具调用记录）
         msg_record = {"role": "assistant", "content": response_text}
@@ -693,15 +710,11 @@ def main():
 
     render_sidebar()
     render_header()
-
-    # 智能提醒在 Tab 上方，全局可见
     render_alerts()
 
     tab_chat, tab_dashboard = st.tabs(["💬 AI 对话", "📊 数据看板"])
-
     with tab_chat:
         render_chat_tab()
-
     with tab_dashboard:
         render_dashboard_tab()
 

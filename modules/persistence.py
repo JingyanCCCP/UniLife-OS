@@ -231,9 +231,19 @@ def add_todo(task: str, deadline: str, priority: str = "🟢 普通", category: 
 
 
 def get_extra_todos() -> list[dict]:
-    """获取用户通过 Agent 新增的待办事项。"""
+    """获取用户通过 Agent 新增的待办事项（自动清理截止日期超过 7 天的过期项）。"""
     data = load_user_data()
-    return data.get("extra_todos", [])
+    extra = data.get("extra_todos", [])
+    if not extra:
+        return extra
+    from datetime import timedelta
+    today = datetime.now().date()
+    cutoff = today - timedelta(days=7)
+    filtered = [t for t in extra if datetime.strptime(t["deadline"], "%Y-%m-%d").date() >= cutoff]
+    if len(filtered) < len(extra):
+        data["extra_todos"] = filtered
+        save_user_data(data)
+    return filtered
 
 
 # ========== 课表相关操作 ==========
