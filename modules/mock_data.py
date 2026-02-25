@@ -17,6 +17,7 @@ from modules.persistence import (
     get_extra_courses, get_deleted_course_ids, get_course_updates,
     get_budget, get_travel_overrides, get_extra_itinerary,
     get_deleted_itinerary_idxs, get_itinerary_updates,
+    get_exercise_weekly, get_exercise_goal, set_exercise_goal,
 )
 
 def get_schedule() -> list[dict]:
@@ -168,7 +169,6 @@ def get_health() -> dict:
     base_steps = 4523
     base_sleep = 6.5
     base_sleep_quality = "一般"
-    base_exercise_week = 1
     base_mood = "😐 一般"
     base_last_exercise = (today - timedelta(days=5)).strftime("%Y-%m-%d")
 
@@ -188,7 +188,6 @@ def get_health() -> dict:
         water = base_water
         exercise_today = False
         mood = base_mood
-    exercise_week = base_exercise_week + (1 if exercise_today else 0)
     last_exercise = today.strftime("%Y-%m-%d") if exercise_today else base_last_exercise
 
     # 过去 6 天的基础数据模板（从最近到最远）
@@ -200,6 +199,20 @@ def get_health() -> dict:
         {"steps": 10200, "sleep": 7.0, "water": 8, "exercise": True, "mood": "😄"},
         {"steps": 8900, "sleep": 8.0, "water": 6, "exercise": False, "mood": "😊"},
     ]
+
+    # 动态计算本周运动次数（mock 历史 + 持久化计数）
+    week_start_date = (today - timedelta(days=today.weekday())).date()
+    base_exercise_week = 0
+    for i, past in enumerate(_past_base):
+        day = (today - timedelta(days=i + 1)).date()
+        if day >= week_start_date and past.get("exercise"):
+            base_exercise_week += 1
+    weekly_data = get_exercise_weekly()
+    week_start_str = week_start_date.strftime("%Y-%m-%d")
+    persisted_count = weekly_data.get("count", 0) if weekly_data.get("week_start") == week_start_str else 0
+    exercise_week = base_exercise_week + persisted_count
+
+    exercise_goal = get_exercise_goal() or 3
 
     # 动态生成最近 7 天历史（今天 + 过去 6 天）
     mood_short = mood.split(" ")[0] if " " in mood else mood
@@ -226,7 +239,7 @@ def get_health() -> dict:
         "water_cups": water,
         "water_goal": 8,
         "exercise_this_week": exercise_week,
-        "exercise_goal": 3,
+        "exercise_goal": exercise_goal,
         "last_exercise": last_exercise,
         "mood": mood,
         "checkin_streak": 6 if exercise_today else 5,

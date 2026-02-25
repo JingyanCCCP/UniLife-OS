@@ -9,7 +9,7 @@ import json
 import tempfile
 import os
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_FILE = DATA_DIR / "user_data.json"
@@ -25,6 +25,8 @@ _DEFAULT_DATA = {
     "deleted_course_ids": [],  # 被删除的 mock 课程 ID
     "course_updates": {},      # {course_id: {field: new_value}} 课程修改记录
     "monthly_budget": None,    # 月预算（None 表示未设置，用 mock 默认值 2000）
+    "exercise_weekly": {"week_start": None, "count": 0},  # 本周运动计数（跨天累计、跨周重置）
+    "exercise_goal": None,        # 每周运动目标次数（None 表示未设置，默认 3）
     "travel_overrides": {},       # {field: new_value} 旅行计划顶层字段覆盖
     "extra_itinerary": [],        # 用户新增的行程站点
     "deleted_itinerary_idxs": [], # 被删除的 mock 行程站点索引
@@ -136,12 +138,26 @@ def log_sleep(hours: float, quality: str = "一般"):
     save_user_data(data)
 
 
-def log_exercise():
-    """运动打卡（跨天自动归零）。"""
+def log_exercise() -> bool:
+    """运动打卡（当天只能打卡一次，周运动次数跨天累计、跨周自动重置）。返回是否为新打卡。"""
     data = load_user_data()
     overrides = _ensure_today_overrides(data)
+    if overrides.get("exercise_today"):
+        return False  # 今天已打卡，不重复计数
     overrides["exercise_today"] = True
+
+    # 累计本周运动次数（跨周自动重置）
+    today = datetime.now()
+    week_start = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d")
+    weekly = data.setdefault("exercise_weekly", {"week_start": None, "count": 0})
+    if weekly.get("week_start") != week_start:
+        weekly["week_start"] = week_start
+        weekly["count"] = 1
+    else:
+        weekly["count"] = weekly.get("count", 0) + 1
+
     save_user_data(data)
+    return True
 
 
 def log_mood(mood: str):
@@ -150,6 +166,25 @@ def log_mood(mood: str):
     overrides = _ensure_today_overrides(data)
     overrides["mood"] = mood
     save_user_data(data)
+
+
+def get_exercise_weekly() -> dict:
+    """获取本周运动计数数据。"""
+    data = load_user_data()
+    return data.get("exercise_weekly", {"week_start": None, "count": 0})
+
+
+def set_exercise_goal(goal: int):
+    """设置每周运动目标次数。"""
+    data = load_user_data()
+    data["exercise_goal"] = goal
+    save_user_data(data)
+
+
+def get_exercise_goal():
+    """获取每周运动目标次数，None 表示未设置（默认 3）。"""
+    data = load_user_data()
+    return data.get("exercise_goal")
 
 
 def update_packing(item: str, checked: bool):

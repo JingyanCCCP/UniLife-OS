@@ -76,6 +76,7 @@ def build_system_prompt(user_context: dict) -> str:
 - **delete_course**: 当用户说"帮我删掉体育课"、"这门课不上了"时调用，可按课程名称或 ID 删除
 - **update_course**: 当用户说"线性代数换教室了"、"高数改到周二"时调用，可按课程名称或 ID 定位并修改字段
 - **set_budget**: 当用户说"把预算改成3000"、"这个月预算2500"时调用
+- **set_exercise_goal**: 当用户说"运动目标改成5次"、"每周锻炼4次"时调用，目标范围 3~7 次
 - **update_travel**: 当用户说"改旅行日期"、"旅行预算改成500"、"删除旅行计划"时调用；当用户说"帮我创建一个旅行计划"、"规划一次旅行"时，设 create=true 并填写基本信息，然后用 add_itinerary_stop 逐个添加行程
 - **add_itinerary_stop**: 当用户说"行程加个景点"、"加一站午餐"时调用，需要时间、活动、地点
 - **delete_itinerary_stop**: 当用户说"去掉骑行那一站"、"删掉第3个行程"时调用，可按序号或活动名称

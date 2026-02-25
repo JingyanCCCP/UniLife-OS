@@ -18,7 +18,7 @@ from modules.persistence import (
     update_todo_status, add_expense, increment_water,
     log_exercise, log_mood, update_packing,
     save_chat_history, load_chat_history, clear_chat_history,
-    get_packing_checked, set_budget,
+    get_packing_checked, set_budget, set_exercise_goal,
 )
 from prompts.system_prompt import build_system_prompt
 from config import APP_NAME, APP_ICON, DEEPSEEK_API_KEY
@@ -304,6 +304,18 @@ def render_sidebar():
             if st.button("📝记心情"):
                 log_mood(selected_mood)
                 _toast_and_rerun(selected_mood + " 心情记录成功！", "✨")
+
+        with st.expander("🎯 运动目标设置"):
+            goal_options = [3, 4, 5, 6, 7]
+            current_goal = health["exercise_goal"]
+            default_idx = goal_options.index(current_goal) if current_goal in goal_options else 0
+            new_goal = st.selectbox(
+                "每周运动次数", goal_options,
+                index=default_idx,
+            )
+            if st.button("保存运动目标"):
+                set_exercise_goal(new_goal)
+                _toast_and_rerun("运动目标已更新为每周 " + str(new_goal) + " 次", "🎯")
 
         st.divider()
 

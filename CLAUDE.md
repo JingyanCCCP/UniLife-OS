@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-2026 AI Agent 创新大赛参赛作品。UniLife OS 是一个专为大学生打造的 AI 校园生活助手，涵盖课程管理、财务记账、健康打卡、待办事项、旅行规划五大模块。用户可通过自然语言对话完成所有操作，AI Agent 自动调用 23 个工具处理请求。
+2026 AI Agent 创新大赛参赛作品。UniLife OS 是一个专为大学生打造的 AI 校园生活助手，涵盖课程管理、财务记账、健康打卡、待办事项、旅行规划五大模块。用户可通过自然语言对话完成所有操作，AI Agent 自动调用 24 个工具处理请求。
 
 基于 Streamlit + DeepSeek-V3（function calling），支持 PWA 添加到手机主屏幕。
 
@@ -18,7 +18,7 @@
          chat_agent() ← chat_engine.py
               │
               ├── DeepSeek API（function calling，最多 5 轮）
-              ├── tools.py（23 个工具 schema + 执行路由）
+              ├── tools.py（24 个工具 schema + 执行路由）
               └── system_prompt.py（动态注入用户上下文）
               │
          数据层
@@ -33,7 +33,7 @@
 - **Toast 延迟**：`_toast_and_rerun()` 暂存消息到 session_state，rerun 后在 `main()` 顶部显示，解决 toast 被 rerun 清除的问题
 - **主题自适应 CSS**：使用 `background-image` 半透明叠加（非 `background` 覆盖），保留 Streamlit 原生底色，单套 CSS 同时适配 Light/Dark
 
-## Agent 工具总览（23 个）
+## Agent 工具总览（24 个）
 
 | 类别 | 工具 | 功能 |
 |------|------|------|
@@ -46,10 +46,11 @@
 |       | `set_budget` | 设置月预算 |
 | 健康 | `query_health` | 查询今日健康数据 |
 |       | `record_water` | 喝水 +1 |
-|       | `record_exercise` | 运动打卡 |
+|       | `record_exercise` | 运动打卡（防重复，周计数累计） |
 |       | `record_mood` | 记录心情 |
 |       | `record_steps` | 记录步数 |
 |       | `record_sleep` | 记录睡眠 |
+|       | `set_exercise_goal` | 设置每周运动目标（3-7次） |
 | 待办 | `query_todos` | 查询待办列表 |
 |       | `toggle_todo` | 切换完成状态 |
 |       | `add_todo` | 新增待办 |
@@ -71,7 +72,7 @@ modules/
   mock_data.py          — 基础数据 + 持久化合并（get_schedule/finance/health/todos/exams/travel/alerts）
   chat_engine.py        — DeepSeek 对话引擎（Agent 循环 + 上下文裁剪）
   persistence.py        — JSON 持久化层（原子写入，增量覆盖设计）
-  tools.py              — 23 个 Agent 工具 Schema + 执行路由
+  tools.py              — 24 个 Agent 工具 Schema + 执行路由
 prompts/
   system_prompt.py      — 动态 System Prompt（注入用户实时上下文 + 工具指引）
 data/
@@ -182,12 +183,23 @@ cloudflared tunnel --url http://localhost:8501
 
 **结论**：已回退到 `st.tabs` 布局，保留 Header 卡片收窄改动。悬浮输入框需要探索其他方案（如 Streamlit components 自定义组件、CSS-only fixed positioning 等）。
 
-## 当前状态（2026-02-24）
+### Phase 8: 运动打卡修复 + 运动目标设置（2026-02-25）
+工具 23 → 24 个：
+- **Bug 修复**：运动打卡周次数不累计（`exercise_this_week` 每天重置回 mock 基础值）
+  - 根因：`health_overrides.exercise_today` 跨天重置，导致昨天打卡记录丢失
+  - 修复：新增 `exercise_weekly` 持久化字段（`week_start` + `count`），跨天累计、跨周自动重置
+  - `get_health()` 从 `_past_base` mock 历史动态计算当前周运动次数 + 持久化计数
+  - `log_exercise()` 防止同日重复打卡（返回 `bool`），Agent 工具给出对应提示
+- **新功能**：每周运动目标可修改（3-7 次）
+  - 持久化 `exercise_goal` 字段，侧边栏新增「运动目标设置」expander
+  - Agent 工具 `set_exercise_goal`（第 24 个），支持自然语言设置
+
+## 当前状态（2026-02-25）
 
 - **布局**：`st.tabs(["💬 AI 对话", "📊 数据看板"])` 标准 tab 切换
 - **输入框**：在"AI 对话" tab 内部，`st.chat_input()` 位于 `render_chat_tab()` 中
 - **Header**：紧凑型 flex 水平布局（Phase 6.3 改动已保留）
-- **Agent 工具**：23 个，覆盖课程/财务/健康/待办/考试/旅行全模块
+- **Agent 工具**：24 个，覆盖课程/财务/健康/待办/考试/旅行全模块
 - **持久化**：JSON 增量覆盖，原子写入
 - **PWA**：manifest + Service Worker + 离线回退
 

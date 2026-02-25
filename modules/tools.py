@@ -18,6 +18,7 @@ from modules.persistence import (
     delete_course as persist_delete_course,
     update_course as persist_update_course,
     set_budget as persist_set_budget,
+    set_exercise_goal as persist_set_exercise_goal,
     update_travel as persist_update_travel,
     add_itinerary_item as persist_add_itinerary,
     delete_itinerary_item as persist_delete_itinerary,
@@ -420,6 +421,24 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "set_exercise_goal",
+            "description": "设置每周运动打卡目标次数。用户说'运动目标改成5次'、'每周锻炼4次'时调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "goal": {
+                        "type": "integer",
+                        "description": "每周运动目标次数（3-7）",
+                        "enum": [3, 4, 5, 6, 7],
+                    },
+                },
+                "required": ["goal"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "update_travel",
             "description": "修改或创建旅行计划。修改时用于更新名称、日期、预算等；创建时设 create=true 会清空旧行程，之后用 add_itinerary_stop 添加新行程。用户说'改旅行日期'、'创建一个旅行计划'、'删除旅行计划'时调用。",
             "parameters": {
@@ -583,6 +602,7 @@ TOOL_DISPLAY_NAMES = {
     "delete_course": "删除课程",
     "update_course": "修改课程",
     "set_budget": "设置预算",
+    "set_exercise_goal": "设置运动目标",
     "update_travel": "修改旅行计划",
     "add_itinerary_stop": "新增行程站点",
     "delete_itinerary_stop": "删除行程站点",
@@ -636,6 +656,8 @@ def execute_tool(name: str, args: dict) -> str:
             return _exec_update_course(args)
         elif name == "set_budget":
             return _exec_set_budget(args)
+        elif name == "set_exercise_goal":
+            return _exec_set_exercise_goal(args)
         elif name == "update_travel":
             return _exec_update_travel(args)
         elif name == "add_itinerary_stop":
@@ -850,8 +872,10 @@ def _exec_record_water(args: dict) -> str:
 
 
 def _exec_record_exercise(args: dict) -> str:
-    log_exercise()
-    return "运动打卡成功！今天的运动已记录。"
+    is_new = log_exercise()
+    if is_new:
+        return "运动打卡成功！今天的运动已记录。"
+    return "今天已经打过卡了，不用重复打卡哦~"
 
 
 def _exec_record_mood(args: dict) -> str:
@@ -1033,6 +1057,14 @@ def _exec_set_budget(args: dict) -> str:
         return "预算金额须在 0～100,000 元之间。"
     persist_set_budget(float(amount))
     return f"已将本月预算设置为 ¥{amount:.0f}。"
+
+
+def _exec_set_exercise_goal(args: dict) -> str:
+    goal = args["goal"]
+    if goal not in (3, 4, 5, 6, 7):
+        return "运动目标须在 3～7 次之间。"
+    persist_set_exercise_goal(goal)
+    return f"已将每周运动目标设置为 {goal} 次。"
 
 
 def _exec_update_travel(args: dict) -> str:
