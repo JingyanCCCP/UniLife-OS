@@ -194,6 +194,19 @@ cloudflared tunnel --url http://localhost:8501
   - 持久化 `exercise_goal` 字段，侧边栏新增「运动目标设置」expander
   - Agent 工具 `set_exercise_goal`（第 24 个），支持自然语言设置
 
+## 当前重构入口（2026-04-24）
+
+项目已转向围绕深圳理工大学 AI Agent 创新大赛进行赛事导向重构。旧 Phase 记录仍保留作为历史上下文；后续以以下两份文档为准：
+
+- `docs/赛事导向重构规划案.md`：重构目标、目标架构、分阶段路线和赛事评分映射
+- `docs/开发记录.md`：实时记录已完成内容、当前阶段 plan、风险和决策
+
+当前重构原则：
+
+- 不推倒重写，保留 Streamlit + DeepSeek function calling 主链路。
+- mock 降级为 demo seed，不再长期扮演事实数据源。
+- 优先建设真实持久化数据层、模块化 Agent 工具体系、主动关怀引擎和稳定演示链路。
+
 ## 当前状态（2026-02-25）
 
 - **布局**：`st.tabs(["💬 AI 对话", "📊 数据看板"])` 标准 tab 切换
