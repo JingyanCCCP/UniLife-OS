@@ -6,9 +6,9 @@ UniLife OS — CSS 样式层（R4 新增；R8-T2 接入设计系统令牌）
 
 R8 阶段视觉重构按卡片分批推进：
 - R8-T2 ✅ Header + 全局背景（本文件已切换到 :root 令牌）
-- R8-T3 ⏸ Alert / Metric / Expander
-- R8-T4 ⏸ Tab / 按钮
-- R8-T5 ⏸ 侧边栏
+- R8-T3 ✅ Alert / Metric / Expander
+- R8-T4 ✅ Tab / 按钮
+- R8-T5 ✅ 侧边栏
 """
 from __future__ import annotations
 
@@ -189,9 +189,17 @@ _CSS = """
         font-size: var(--fs-h3);
         font-weight: 600;
         letter-spacing: 0.05em;
+        text-transform: uppercase;
         color: var(--color-text-primary);
         margin-top: var(--space-3);
         margin-bottom: var(--space-2);
+    }
+
+    /* 正文段落（stMarkdown 渲染的普通文字） */
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+        font-size: var(--fs-body);
+        color: var(--color-text-primary);
+        line-height: 1.5;
     }
 
     /* caption 与小字 */
@@ -201,10 +209,10 @@ _CSS = """
         color: var(--color-text-muted);
     }
 
-    /* 分隔线：默认 hairline */
+    /* 分隔线：强分隔（2px 黑），强化模块边界感（构成主义） */
     [data-testid="stSidebar"] hr {
         border: none;
-        border-top: 1px solid var(--color-border-hairline);
+        border-top: 2px solid var(--color-border-strong);
         margin: var(--space-3) 0;
     }
 
