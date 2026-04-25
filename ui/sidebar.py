@@ -1,9 +1,3 @@
-"""
-UniLife OS — 侧边栏视图（R4 新增）
-
-保持原 735 行 app.py 中 `render_sidebar()` 的完整交互逻辑不变，仅在末尾新增
-R4-T3「一键重置 demo 数据」按钮（仅当环境变量 APP_MODE=demo 时显示）。
-"""
 from __future__ import annotations
 
 import html as html_mod
@@ -14,44 +8,43 @@ import streamlit as st
 
 from config import APP_NAME, APP_ICON, DEEPSEEK_API_KEY
 from modules.mock_data import (
-    get_today_schedule, get_finance, get_health, get_todos,
-    get_upcoming_exams,
+    get_today_schedule, get_finance, get_health, get_todos, get_upcoming_exams,
 )
 from modules.persistence import (
     update_todo_status, add_expense, increment_water,
-    log_exercise, log_mood,
-    clear_chat_history, set_budget, set_exercise_goal,
+    log_exercise, log_mood, clear_chat_history, set_budget, set_exercise_goal,
 )
-
 from ui.components import toast_and_rerun
 
+# 消费分类
+_EXPENSE_CATEGORIES = ["餐饮", "交通", "购物", "学习用品", "娱乐", "其他"]
 
-# ---------------------------------------------------------------------------
-# 各模块卡片（仅在 render_sidebar 内部的 with st.sidebar 上下文中调用）
-# ---------------------------------------------------------------------------
+# 心情选项
+_MOOD_OPTIONS = ["😊 开心", "🙂 还行", "😐 一般", "😢 难过", "😫 疲惫"]
+
+# 星期映射
+_WEEKDAY_MAP = {0: "周一", 1: "周二", 2: "周三", 3: "周四", 4: "周五", 5: "周六", 6: "周日"}
+
+# 待办优先级灰度
+_PRIORITY_GRAY = {"🔴": "🔘", "🟡": "🔘", "🟢": "🔘"}
+
 
 def _api_status() -> None:
     if DEEPSEEK_API_KEY:
-        st.success("🟢 AI 引擎已连接", icon="✅")
+        st.success("AI 引擎已连接", icon="✅")
     else:
-        st.error("🔴 请配置 DeepSeek API Key", icon="⚠️")
+        st.error("请配置 DeepSeek API Key", icon="⚠️")
         st.info("在项目根目录创建 `.env` 文件，添加：\n`DEEPSEEK_API_KEY=你的密钥`")
 
 
 def _today_schedule_block() -> None:
     today_courses = get_today_schedule()
-    weekday_map = {0: "周一", 1: "周二", 2: "周三", 3: "周四",
-                   4: "周五", 5: "周六", 6: "周日"}
-    today_wd = weekday_map[datetime.now().weekday()]
-
+    today_wd = _WEEKDAY_MAP[datetime.now().weekday()]
     st.markdown(f"### 📅 今日课程（{today_wd}）")
     if today_courses:
         for c in today_courses:
-            type_badge = "🧪" if c.get("type") == "实验" else "📖"
-            st.markdown(
-                f"{type_badge} **{c['course']}**  \n"
-                f"⏰ {c['time']}  📍 {c['location']}"
-            )
+            badge = "🧪" if c.get("type") == "实验" else "📖"
+            st.markdown(f"{badge} **{c['course']}**  \n⏰ {c['time']}  📍 {c['location']}")
     else:
         st.info("🎉 今天没有课，自由安排！")
 
@@ -61,10 +54,8 @@ def _finance_block() -> None:
     st.markdown("### 💰 财务快览")
 
     st.metric(
-        label="本月剩余",
-        value=f"¥{int(finance['remaining'])}",
-        delta=f"-¥{int(finance['spent'])} 已花费",
-        delta_color="inverse",
+        label="本月剩余", value=f"¥{int(finance['remaining'])}",
+        delta=f"-¥{int(finance['spent'])} 已花费", delta_color="inverse",
     )
     st.progress(
         min(finance["budget_usage_pct"] / 100, 1.0),
@@ -94,24 +85,17 @@ def _finance_block() -> None:
                 item = st.text_input("花了什么", placeholder="奶茶")
             with form_cols[1]:
                 amount = st.number_input("金额", min_value=0.0, step=0.5, format="%.1f")
-            category = st.selectbox(
-                "分类",
-                ["餐饮", "交通", "购物", "学习用品", "娱乐", "其他"],
-            )
-            submitted = st.form_submit_button("📝 记录")
-            if submitted:
+            category = st.selectbox("分类", _EXPENSE_CATEGORIES)
+            if st.form_submit_button("📝 记录"):
                 if not item or amount <= 0:
                     st.warning("⚠️ 请填写消费项目并输入大于 0 的金额")
                 else:
                     add_expense(item, amount, category)
-                    toast_and_rerun(
-                        f"✅ 已记录：{item} ¥{amount}（{category}）", "💾"
-                    )
+                    toast_and_rerun(f"✅ 已记录：{item} ¥{amount}（{category}）", "💾")
 
     with st.expander("⚙️ 预算设置"):
         new_budget = st.number_input(
-            "月预算 (元)",
-            value=float(finance["monthly_budget"]),
+            "月预算 (元)", value=float(finance["monthly_budget"]),
             min_value=100.0, step=100.0, format="%.0f",
         )
         if st.button("保存预算"):
@@ -125,8 +109,7 @@ def _health_block() -> None:
 
     hcol1, hcol2 = st.columns(2)
     with hcol1:
-        st.metric("步数", f"{health['today_steps']:,}",
-                  delta=f"目标 {health['step_goal']:,}")
+        st.metric("步数", f"{health['today_steps']:,}", delta=f"目标 {health['step_goal']:,}")
     with hcol2:
         st.metric("睡眠", f"{health['sleep_hours']}h", delta=health["sleep_quality"])
 
@@ -136,9 +119,7 @@ def _health_block() -> None:
     with hcol4:
         st.metric("运动", f"{health['exercise_this_week']}/{health['exercise_goal']}次")
 
-    st.caption(
-        f"😊 心情: {health['mood']} | 🔥 连续打卡 {health['checkin_streak']} 天"
-    )
+    st.caption(f"😊 心情: {health['mood']} | 🔥 连续打卡 {health['checkin_streak']} 天")
 
     st.markdown("**快速打卡：**")
     btn_cols = st.columns(3)
@@ -148,17 +129,14 @@ def _health_block() -> None:
             total = get_health()["water_cups"]
             toast_and_rerun(f"💧 喝水 +1，已喝 {total} 杯！", "💧")
     with btn_cols[1]:
-        exercise_done = (
-            health.get("last_exercise") == datetime.now().strftime("%Y-%m-%d")
-        )
+        exercise_done = health.get("last_exercise") == datetime.now().strftime("%Y-%m-%d")
         btn_label = "✅ 已打卡" if exercise_done else "🏃运动"
         if st.button(btn_label, disabled=exercise_done):
             log_exercise()
             toast_and_rerun("🏃 运动打卡成功！已保存", "🎉")
     with btn_cols[2]:
-        mood_options = ["😊 开心", "🙂 还行", "😐 一般", "😢 难过", "😫 疲惫"]
         selected_mood = st.selectbox(
-            "心情", mood_options, label_visibility="collapsed", key="mood_select",
+            "心情", _MOOD_OPTIONS, label_visibility="collapsed", key="mood_select",
         )
         if st.button("📝记心情"):
             log_mood(selected_mood)
@@ -167,9 +145,7 @@ def _health_block() -> None:
     with st.expander("🎯 运动目标设置"):
         goal_options = [3, 4, 5, 6, 7]
         current_goal = health["exercise_goal"]
-        default_idx = (
-            goal_options.index(current_goal) if current_goal in goal_options else 0
-        )
+        default_idx = goal_options.index(current_goal) if current_goal in goal_options else 0
         new_goal = st.selectbox("每周运动次数", goal_options, index=default_idx)
         if st.button("保存运动目标"):
             set_exercise_goal(new_goal)
@@ -183,7 +159,7 @@ def _todo_block() -> None:
 
     st.markdown(f"### 📝 待办事项 ({len(pending)})")
 
-    # 每次渲染同步最新状态（Agent 新增/修改的待办也能反映）
+    # 同步最新状态（Agent 新增/修改的待办也能反映）
     st.session_state.todo_done = {t["id"]: t["done"] for t in todos}
 
     for t in pending:
@@ -198,11 +174,10 @@ def _todo_block() -> None:
         st.info("🎉 所有待办已完成！")
 
     if done_todos:
-        gray_priority = {"🔴": "🔘", "🟡": "🔘", "🟢": "🔘"}
         with st.expander(f"✅ 已完成 ({len(done_todos)})", expanded=False):
             for t in done_todos:
                 gray_label = t["priority"]
-                for color, gray in gray_priority.items():
+                for color, gray in _PRIORITY_GRAY.items():
                     gray_label = gray_label.replace(color, gray)
                 label = f"{gray_label} ~~{t['task']}~~（{t['deadline']}）"
                 unchecked = st.checkbox(label, value=True, key=f"todo_{t['id']}")
@@ -231,28 +206,23 @@ def _exam_block() -> None:
 
 
 def _clear_chat_block() -> None:
-    if st.button("🔄 清除对话", use_container_width=True):
+    if st.button("🔄 清除对话", width="stretch"):
         st.session_state.messages = []
         clear_chat_history()
         toast_and_rerun("对话已清除", "🔄")
 
 
 def _demo_reset_block() -> None:
-    """R4-T3：仅当 APP_MODE=demo 时显示的演示重置按钮。"""
     if os.getenv("APP_MODE", "").lower() != "demo":
         return
     st.caption("🧪 DEMO 模式工具")
-    if st.button("🧹 一键重置 demo 数据", use_container_width=True):
-        from tools.reset_demo import reset  # 延迟导入，非演示模式不加载
+    if st.button("🧹 一键重置 demo 数据", width="stretch"):
+        from tools.reset_demo import reset  # 延迟导入
         reset()
         toast_and_rerun("demo 数据已重置到 seed 态", "🧹")
 
 
 def _dev_info_block() -> None:
-    """R5-T3：开发者信息折叠区，仅 APP_MODE=demo 时显示。
-
-    展示最近 5 次工具调用（来自 agent.executor）和最近 3 条主动事件（来自 proactive）。
-    """
     if os.getenv("APP_MODE", "").lower() != "demo":
         return
     with st.expander("🧪 开发者信息（observability）", expanded=False):
@@ -284,9 +254,7 @@ def _dev_info_block() -> None:
             st.caption("(尚无事件)")
 
 
-# ---------------------------------------------------------------------------
-# 入口
-# ---------------------------------------------------------------------------
+# -- 入口 --
 
 def render_sidebar() -> None:
     with st.sidebar:

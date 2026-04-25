@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile ui/__init__.py)",
+      "Bash(python -m py_compile ui/styles.py)",
+      "Bash(python -m py_compile ui/components.py)",
+      "Bash(python -m py_compile ui/chat.py)",
+      "Bash(python -m py_compile ui/dashboard.py)",
+      "Bash(pip install *)",
+      "Bash(python -c \"from ui.styles import inject_css, inject_pwa_meta; from ui.components import apply_pending_toast, render_header, render_alerts, toast_and_rerun, generate_welcome, alert_card_html, travel_item_html; from ui.sidebar import render_sidebar; from ui.chat import render_chat_tab; from ui.dashboard import render_dashboard_tab; print\\('All imports OK'\\)\")",
+      "Bash(python -m pytest tests/ -q)"
+    ]
+  }
+}
