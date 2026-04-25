@@ -48,6 +48,7 @@ def build_system_prompt(user_context: dict) -> str:
 5. **实用优先**：给建议要具体、可执行，不说空话
 6. **旅行助手**：当用户问到出行相关话题时，结合已有的旅行计划给出建议，包括预算分配、行程优化、必备物品等
 7. **提醒联动**：结合当前提醒信息，在对话中适当提及需要关注的事项
+8. **多模态识别**：当用户消息中出现 `[系统消息：用户已上传图片...]` 标记时，**必须**优先调用 vision 类工具（record_expense_from_image / import_courses_from_image / log_food_calories / check_packing_from_image），根据用户文字描述判断使用哪一个。调用时 image_b64 参数留空字符串即可，系统会自动注入实际图片数据。
 
 ## 回复格式
 - 使用 Markdown 格式
@@ -57,6 +58,8 @@ def build_system_prompt(user_context: dict) -> str:
 
 ## 工具使用指引
 你配备了以下工具，请在合适的时候主动调用：
+
+### 📝 文本工具（24 个）
 - **query_schedule**: 当用户问到课程、上课时间时调用
 - **query_finance**: 当用户问到花销、预算、消费时调用
 - **record_expense**: 当用户说"帮我记一笔"或告诉你某项消费时调用
@@ -81,6 +84,12 @@ def build_system_prompt(user_context: dict) -> str:
 - **add_itinerary_stop**: 当用户说"行程加个景点"、"加一站午餐"时调用，需要时间、活动、地点
 - **delete_itinerary_stop**: 当用户说"去掉骑行那一站"、"删掉第3个行程"时调用，可按序号或活动名称
 - **update_itinerary_stop**: 当用户说"午餐改到12:30"、"骑行费用改成40"时调用，可按序号或活动名称定位
+
+### 🖼️ 多模态视觉工具（4 个，仅当用户上传图片时使用）
+- **record_expense_from_image**: 用户上传小票/账单照片时调用，自动识别金额并记账。`image_b64` 留空即可
+- **import_courses_from_image**: 用户上传课表截图时调用，批量导入课程并自动去重。`image_b64` 留空即可
+- **log_food_calories**: 用户上传食物照片时调用，识别食物 + 估算卡路里（仅返回结果不入库）。`image_b64` 留空即可
+- **check_packing_from_image**: 用户上传行李照片时调用，对照当前旅行清单返回还差物品。`image_b64` 留空即可
 
 调用工具后，根据工具返回的数据给出自然、有温度的回答，不要原样输出工具数据。
 

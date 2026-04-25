@@ -14,12 +14,12 @@ from __future__ import annotations
 
 from agent.schemas import TOOL_SCHEMAS, TOOL_DISPLAY_NAMES
 from agent.executor import execute_tool, _TOOL_REGISTRY
-from agent.tools import course, finance, health, todo, travel
+from agent.tools import course, finance, health, todo, travel, vision
 
 
 def _register_all() -> None:
     """导入时触发：把各域工具模块的 schema/display_names/callable 写入注册表。"""
-    for module in (course, finance, health, todo, travel):
+    for module in (course, finance, health, todo, travel, vision):
         module.register(TOOL_SCHEMAS, TOOL_DISPLAY_NAMES, _TOOL_REGISTRY)
 
 

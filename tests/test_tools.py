@@ -6,9 +6,10 @@ from __future__ import annotations
 from modules.tools import TOOL_SCHEMAS, TOOL_DISPLAY_NAMES, execute_tool
 
 
-def test_tool_count_is_24(tmp_data_file):
-    assert len(TOOL_SCHEMAS) == 24
-    assert len(TOOL_DISPLAY_NAMES) == 24
+def test_tool_count_is_28(tmp_data_file):
+    """工具总数 = 24 文本工具 + 4 视觉工具（R7-T3 新增）。"""
+    assert len(TOOL_SCHEMAS) == 28
+    assert len(TOOL_DISPLAY_NAMES) == 28
 
 
 def test_unknown_tool_graceful(tmp_data_file):
