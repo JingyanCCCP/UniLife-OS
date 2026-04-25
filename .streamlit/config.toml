@@ -1,0 +1,16 @@
+# UniLife OS Streamlit 主题配置
+# R8-T2 新增：锁定 light 模式 + 设计系统主题色
+# 详细令牌见 docs/设计系统.md
+
+[theme]
+base = "light"
+primaryColor = "#8B2727"
+backgroundColor = "#F5F2EC"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1A1A1A"
+font = "sans serif"
+
+[server]
+# 默认端口与开发体验设置
+headless = false
+runOnSave = true
