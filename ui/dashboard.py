@@ -45,17 +45,17 @@ def _finance_section(col) -> None:
             height=350,
             dragmode=False,
         )
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False, "scrollZoom": False})
 
         st.markdown("**📈 消费指标**")
         m1, m2, m3 = st.columns(3)
         with m1:
-            st.metric("日均消费", f"¥{int(finance['daily_avg_spent'])}")
+            st.metric("日均消费", f"¥{int(finance['daily_avg_spent'])}", border=True)
         with m2:
-            st.metric("剩余天数", f"{finance['days_left_in_month']}天")
+            st.metric("剩余天数", f"{finance['days_left_in_month']}天", border=True)
         with m3:
-            st.metric("建议日限", f"¥{int(finance['suggested_daily'])}")
+            st.metric("建议日限", f"¥{int(finance['suggested_daily'])}", border=True)
 
 
 def _schedule_section(col) -> None:
@@ -69,7 +69,7 @@ def _schedule_section(col) -> None:
                     "location": "地点", "type": "类型",
                 }
             ),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -100,7 +100,7 @@ def _health_trend_section(col) -> None:
             margin=dict(t=20, b=20, l=20, r=20), height=250,
             showlegend=False, dragmode=False,
         )
-        st.plotly_chart(fig_steps, use_container_width=True,
+        st.plotly_chart(fig_steps, width="stretch",
                         config={"displayModeBar": False, "scrollZoom": False})
 
         st.markdown("**😴 每日睡眠**")
@@ -117,7 +117,7 @@ def _health_trend_section(col) -> None:
             margin=dict(t=20, b=20, l=20, r=20), height=250,
             showlegend=False, coloraxis_showscale=False, dragmode=False,
         )
-        st.plotly_chart(fig_sleep, use_container_width=True,
+        st.plotly_chart(fig_sleep, width="stretch",
                         config={"displayModeBar": False, "scrollZoom": False})
 
 
@@ -141,12 +141,13 @@ def _travel_section(col) -> None:
 
         t_m1, t_m2 = st.columns(2)
         with t_m1:
-            st.metric("预算", f"¥{int(travel['budget'])}")
+            st.metric("预算", f"¥{int(travel['budget'])}", border=True)
         with t_m2:
             st.metric(
                 "预估花费",
                 f"¥{int(travel['total_estimated_cost'])}",
                 delta=f"剩余 ¥{int(travel['budget'] - travel['total_estimated_cost'])}",
+                border=True,
             )
 
         st.markdown("**📍 行程时间线**")

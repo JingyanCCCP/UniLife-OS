@@ -5,8 +5,11 @@
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from modules.mock_data import get_todos, get_upcoming_exams
 from modules.persistence import update_todo_status, add_todo as persist_add_todo
+from agent.tools._validators import validate_non_empty_str
 
 
 SCHEMAS: list[dict] = [
@@ -122,10 +125,15 @@ def _exec_toggle_todo(args: dict) -> str:
 
 def _exec_add_todo(args: dict) -> str:
     task = args["task"]
+    if (err := validate_non_empty_str(task, "待办事项")):
+        return err
     deadline = args["deadline"]
+    normalized_deadline = _normalize_deadline(deadline)
+    if normalized_deadline is None:
+        return "截止日期格式不正确，请使用 YYYY-MM-DD，或说“今天 / 明天 / 后天”。"
     priority = args.get("priority", "🟢 普通")
     category = args.get("category", "生活")
-    todo = persist_add_todo(task, deadline, priority, category)
+    todo = persist_add_todo(task.strip(), normalized_deadline, priority, category)
     return (
         f"已新增待办事项：\n"
         f"- ID: {todo['id']}\n"
@@ -134,6 +142,27 @@ def _exec_add_todo(args: dict) -> str:
         f"- 优先级: {todo['priority']}\n"
         f"- 分类: {todo['category']}"
     )
+
+
+def _normalize_deadline(value) -> str | None:
+    """把常见中文相对日期归一化为 YYYY-MM-DD；不猜复杂自然语言。"""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    today = datetime.now().date()
+    relative_days = {
+        "今天": 0,
+        "今日": 0,
+        "明天": 1,
+        "明日": 1,
+        "后天": 2,
+    }
+    if text in relative_days:
+        return (today + timedelta(days=relative_days[text])).strftime("%Y-%m-%d")
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
 
 
 def _exec_query_exams(args: dict) -> str:

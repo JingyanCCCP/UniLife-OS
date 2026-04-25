@@ -207,37 +207,40 @@ cloudflared tunnel --url http://localhost:8501
 
 项目正围绕深圳理工大学 AI Agent 创新大赛推进赛事导向重构。旧 Phase 记录仍保留作为历史上下文；后续以以下三份文档为准：
 
-- `docs/赛事导向重构规划案.md`：第一期 R0-R6 任务卡（R0-R5 已完成）。
-- `docs/赛事导向重构规划案_2.md`：第二期 R7（模型升级 + 多模态）+ R8（前端构成主义视觉重构）。**接手 AI 从这里的第 0 节开始**。
-- `docs/开发记录.md`：实时记录当前激活任务卡、今日变更、决策记录。
+- `docs/重构规划.md`：合并后的任务卡队列（原赛事导向重构规划案 v1+v2 已合并）+ 决策记录 + 风险清单 + 演示脚本。**接手 AI 从这里的第 0 节开始**。
+- `docs/开发记录.md`：实时记录当前激活任务卡、近 3 条变更详细、历史变更索引、决策记录。
+- `docs/设计系统.md`：R8 设计令牌（色板 / 字体 / 字号 / 间距 / 圆角 / 边框 / 阴影 7 类）。
 
-当前重构状态（2026-04-25 13:30）：
+当前重构状态（2026-04-26）：
 
 - **第一期 R0-R5 ✅**：动态 seed / 工具模块化 / 主动关怀引擎 / UI 拆分 / 52 项 pytest 全部完成。
-- **第二期 R7（模型升级 + 多模态）✅**：T1 V3→V4-Flash 切换 + 豆包 base_url 接入；T2 modules/vision.py 4 个识别函数；T3 agent/tools/vision.py 4 个链式工具；T4 ui/chat.py 图片上传 + b64 注入；T5 16 条 vision 单元测试；T6 全量验收（pytest 68 / AppTest 双模式 / 文档同步）。真机演示 5 场景待豆包 endpoint 创建后联调。
-- **第二期 R8（前端构成主义视觉重构）排队**：6 张子卡，米色 off-white + 暖红 + 硬边几何，待 R7-T6 全部收笔后激活。
-- **R6（队友主导初赛材料 + 决赛演示）排队**。
+- **第二期 R7（模型升级 + 多模态）✅**：T1 V3→V4-Flash 切换 + 豆包 base_url 接入；T2 modules/vision.py 4 个识别函数；T3 agent/tools/vision.py 4 个链式工具；T4 ui/chat.py 图片上传 + b64 注入；T5 16 条 vision 单元测试；T6 全量验收 + endpoint 联调通过。工具数 24 → 28。
+- **第二期 R8（前端构成主义视觉 + 拟态收敛）✅**：设计系统文档、双卡 hero、主动关怀卡、Tab / 按钮、侧边栏、数据看板 metric、PWA 静态路径全部收敛；截图已归档到 `docs/screenshots/`。
+- **代码收尾 ✅**：图片预览持久化、待办 deadline 校验、坏数据清理、Streamlit 1.56 参数兼容、CSS 结构修复与 metric 字号层级完成。
+- **R6（队友主导初赛材料 + 决赛演示）排队**：R8 完成后激活，由队友主导文稿 / PPT / 录屏，AI 辅助稳定性和材料校对。
 
 第二期重构核心原则（保留）：
 
 - 不推倒重写，保留 Streamlit + DeepSeek function calling 主链路。
 - mock 降级为动态 seed（**不走 SQLite**，本轮跳过数据库迁移，见开发记录 2026-04-25 决策）。
-- 同一时间只推进一张任务卡。改动前先读规划案对应卡的「允许/禁止改动的文件」。
+- 同一时间只推进一张任务卡。改动前先读 `docs/重构规划.md` 对应卡的「允许/禁止改动」字段。
 - 演示模式：`APP_MODE=demo streamlit run app.py` 打开「🧹 一键重置 demo 数据」按钮与「🧪 开发者信息（observability）」折叠区。
 
-## 当前状态（2026-04-25 R7 完成）
+## 当前状态（2026-04-26 R8 完成）
 
-- **布局**：`st.tabs(["💬 AI 对话", "📊 数据看板"])` 标准 tab 切换
+- **布局**：`st.tabs(["💬 AI 对话", "📊 数据看板"])` 标准 tab 切换；底部 3px 品牌色条标记激活态
 - **输入框**：在"AI 对话" tab 内部，`st.chat_input()` 位于 `render_chat_tab()` 中
 - **图片上传**：chat_input 上方的 `📷 上传图片` expander，支持 jpg/jpeg/png，自动 Pillow 压缩 ≤ 1024px
-- **Header**：紧凑型 flex 水平布局（Phase 6.3 改动已保留，R8 阶段会重构为构成主义风格）
+- **Header**：双卡 hero + 状态胶囊 + 4 宫格数字面板；构成主义骨架叠加克制拟态
+- **侧边栏 / 数据看板**：米色 / 暖白 surface、hairline、内高光、软阴影；metric 主体数值突出，delta 辅助信息降权
 - **Agent 工具**：28 个（24 文本 + 4 多模态），覆盖课程/财务/健康/待办/考试/旅行全模块 + 拍照入账 / 拍课表 / 拍食物 / 拍行李
 - **持久化**：JSON 增量覆盖，原子写入
 - **PWA**：manifest + Service Worker + 离线回退
-- **测试**：68 项 pytest（含 16 条 vision 用例），0.4 秒全绿
+- **测试**：71 项 pytest（含 vision / 持久化 / 工具边界），AppTest 默认 + demo 双模式 0 异常
+- **主题锁定**：`.streamlit/config.toml` 锁 light 主题，避免 dark 模式覆盖设计令牌
 
-## 待做（R8 + 决赛准备）
+## 待做（R6 决赛准备）
 
-- R8 前端构成主义视觉重构（6 张子卡，约 10h）
-- 真机 5 场景演示走查（依赖用户在火山方舟控制台创建豆包 vision endpoint 并把 ID 写入 .env 的 DOUBAO_VISION_MODEL）
-- 决赛 PPT / 录屏准备（队友主导）
+- 决赛 PPT / 录屏准备（队友主导，AI 辅助）
+- 录屏前执行 `python -m pytest` + AppTest 双模式 + `python tools/reset_demo.py`
+- 如需补拍截图，继续归档到 `docs/screenshots/`

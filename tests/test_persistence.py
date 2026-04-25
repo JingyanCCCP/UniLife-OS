@@ -122,3 +122,17 @@ def test_proactive_events_upsert_and_read(tmp_data_file):
     persistence.mark_proactive_read("budget_risk:2026-04")
     read = persistence.get_proactive_read_keys()
     assert "budget_risk:2026-04" in read
+
+
+def test_save_chat_history_drops_raw_image_preview_bytes(tmp_data_file):
+    persistence.save_chat_history([
+        {
+            "role": "user",
+            "content": "帮我记账",
+            "_image_preview": b"\xff\xd8",
+            "_image_preview_b64": "/9g=",
+        }
+    ])
+    messages = persistence.load_chat_history()
+    assert messages[0]["_image_preview_b64"] == "/9g="
+    assert "_image_preview" not in messages[0]

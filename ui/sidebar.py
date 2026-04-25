@@ -12,7 +12,7 @@ from datetime import datetime
 
 import streamlit as st
 
-from config import APP_NAME, APP_ICON, DEEPSEEK_API_KEY
+from config import APP_NAME, DEEPSEEK_API_KEY
 from modules.mock_data import (
     get_today_schedule, get_finance, get_health, get_todos,
     get_upcoming_exams,
@@ -44,7 +44,7 @@ def _today_schedule_block() -> None:
                    4: "周五", 5: "周六", 6: "周日"}
     today_wd = weekday_map[datetime.now().weekday()]
 
-    st.markdown(f"### 📅 今日课程（{today_wd}）")
+    st.markdown(f"### 今日课程（{today_wd}）")
     if today_courses:
         for c in today_courses:
             type_badge = "🧪" if c.get("type") == "实验" else "📖"
@@ -58,13 +58,14 @@ def _today_schedule_block() -> None:
 
 def _finance_block() -> None:
     finance = get_finance()
-    st.markdown("### 💰 财务快览")
+    st.markdown("### 财务快览")
 
     st.metric(
         label="本月剩余",
         value=f"¥{int(finance['remaining'])}",
         delta=f"-¥{int(finance['spent'])} 已花费",
         delta_color="inverse",
+        border=True,
     )
     st.progress(
         min(finance["budget_usage_pct"] / 100, 1.0),
@@ -121,20 +122,20 @@ def _finance_block() -> None:
 
 def _health_block() -> None:
     health = get_health()
-    st.markdown("### 🏥 今日健康")
+    st.markdown("### 今日健康")
 
     hcol1, hcol2 = st.columns(2)
     with hcol1:
         st.metric("步数", f"{health['today_steps']:,}",
-                  delta=f"目标 {health['step_goal']:,}")
+                  delta=f"目标 {health['step_goal']:,}", border=True)
     with hcol2:
-        st.metric("睡眠", f"{health['sleep_hours']}h", delta=health["sleep_quality"])
+        st.metric("睡眠", f"{health['sleep_hours']}h", delta=health["sleep_quality"], border=True)
 
     hcol3, hcol4 = st.columns(2)
     with hcol3:
-        st.metric("喝水", f"{health['water_cups']}/{health['water_goal']}杯")
+        st.metric("喝水", f"{health['water_cups']}/{health['water_goal']}杯", border=True)
     with hcol4:
-        st.metric("运动", f"{health['exercise_this_week']}/{health['exercise_goal']}次")
+        st.metric("运动", f"{health['exercise_this_week']}/{health['exercise_goal']}次", border=True)
 
     st.caption(
         f"😊 心情: {health['mood']} | 🔥 连续打卡 {health['checkin_streak']} 天"
@@ -181,7 +182,7 @@ def _todo_block() -> None:
     pending = [t for t in todos if not t["done"]]
     done_todos = [t for t in todos if t["done"]]
 
-    st.markdown(f"### 📝 待办事项 ({len(pending)})")
+    st.markdown(f"### 待办事项 ({len(pending)})")
 
     # 每次渲染同步最新状态（Agent 新增/修改的待办也能反映）
     st.session_state.todo_done = {t["id"]: t["done"] for t in todos}
@@ -216,7 +217,7 @@ def _exam_block() -> None:
     exams = get_upcoming_exams()
     if not exams:
         return
-    st.markdown("### 🎯 考试倒计时")
+    st.markdown("### 考试倒计时")
     for e in exams:
         countdown = "今天！" if e["days_left"] == 0 else f"{e['days_left']} 天后"
         msg = f"**{e['course']}** — {countdown}\n📍 {e['location']}"
@@ -231,7 +232,7 @@ def _exam_block() -> None:
 
 
 def _clear_chat_block() -> None:
-    if st.button("🔄 清除对话", use_container_width=True):
+    if st.button("🔄 清除对话", width="stretch"):
         st.session_state.messages = []
         clear_chat_history()
         toast_and_rerun("对话已清除", "🔄")
@@ -242,7 +243,7 @@ def _demo_reset_block() -> None:
     if os.getenv("APP_MODE", "").lower() != "demo":
         return
     st.caption("🧪 DEMO 模式工具")
-    if st.button("🧹 一键重置 demo 数据", use_container_width=True):
+    if st.button("🧹 一键重置 demo 数据", width="stretch"):
         from tools.reset_demo import reset  # 延迟导入，非演示模式不加载
         reset()
         toast_and_rerun("demo 数据已重置到 seed 态", "🧹")
@@ -290,7 +291,7 @@ def _dev_info_block() -> None:
 
 def render_sidebar() -> None:
     with st.sidebar:
-        st.markdown(f"## {APP_ICON} {APP_NAME}")
+        st.markdown(f"## {APP_NAME}")
         st.caption("你的大学生活智能操作系统")
         st.divider()
         _api_status()

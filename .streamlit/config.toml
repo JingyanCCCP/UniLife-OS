@@ -14,3 +14,4 @@ font = "sans serif"
 # 默认端口与开发体验设置
 headless = false
 runOnSave = true
+enableStaticServing = true

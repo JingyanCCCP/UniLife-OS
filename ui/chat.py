@@ -94,8 +94,11 @@ def _render_message_history(chat_container) -> None:
                         display_name = TOOL_DISPLAY_NAMES.get(tc["name"], tc["name"])
                         with st.expander(f"🔧 {display_name}", expanded=False):
                             st.code(tc["result"], language=None)
-                # 历史用户消息中如果有图片缩略图，显示
-                if msg.get("_image_preview"):
+                # 历史用户消息中如果有图片缩略图，显示。持久化只保存 base64 字符串。
+                preview_b64 = msg.get("_image_preview_b64")
+                if preview_b64:
+                    st.image(base64.b64decode(preview_b64), width=200)
+                elif msg.get("_image_preview"):
                     st.image(msg["_image_preview"], width=200)
                 st.markdown(msg["content"])
 
@@ -119,8 +122,8 @@ def _handle_user_prompt(prompt: str, chat_container) -> None:
             st.markdown(prompt)
 
     user_record = {"role": "user", "content": prompt}
-    if pending_preview:
-        user_record["_image_preview"] = pending_preview
+    if pending_b64:
+        user_record["_image_preview_b64"] = pending_b64
     st.session_state.messages.append(user_record)
 
     context = build_context_summary()
@@ -195,7 +198,7 @@ def _render_image_upload() -> None:
                          caption="✨ 已就绪，发送下方文字时会一起送 AI 处理")
             with cols[1]:
                 if st.button("🗑️ 清除", key="clear_pending_btn",
-                             use_container_width=True):
+                             width="stretch"):
                     _clear_pending_image()
                     st.rerun()
 

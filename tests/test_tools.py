@@ -97,3 +97,16 @@ def test_update_travel_create_then_add_stop(tmp_data_file):
         "time": "09:00", "activity": "测试活动", "location": "测试地点",
     })
     assert "测试活动" in add_r
+
+
+def test_add_todo_normalizes_relative_deadline(tmp_data_file):
+    r = execute_tool("add_todo", {"task": "测试相对日期", "deadline": "明天"})
+    assert "已新增" in r
+    assert "明天" not in r
+    assert "工具执行出错" not in execute_tool("query_todos", {})
+
+
+def test_add_todo_rejects_invalid_deadline(tmp_data_file):
+    r = execute_tool("add_todo", {"task": "坏日期", "deadline": "下周末"})
+    assert "截止日期格式不正确" in r
+    assert "坏日期" not in execute_tool("query_todos", {})
