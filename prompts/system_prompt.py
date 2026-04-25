@@ -37,7 +37,7 @@ def build_system_prompt(user_context: dict) -> str:
 ### ✈️ 旅行计划
 {user_context.get('travel_summary', '暂无旅行计划')}
 
-### 🔔 当前提醒
+### 🔔 主动关怀事件（系统主动扫描，12h 去重）
 {user_context.get('alert_summary', '当前没有需要特别关注的事项')}
 
 ## 你的行为准则

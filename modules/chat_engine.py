@@ -64,6 +64,15 @@ def chat_agent(messages: list[dict], tools: list[dict], execute_tool_fn) -> tupl
         - final_text: 最终回复文本
         - tool_call_log: 工具调用记录列表 [{"name": ..., "args": ..., "result": ...}, ...]
     """
+    # R5: API Key 缺失时早退出，避免 OpenAI SDK 抛长 traceback
+    if not DEEPSEEK_API_KEY:
+        return (
+            "⚠️ 当前没有检测到 DeepSeek API Key，无法调用大模型。\n"
+            "请在项目根目录创建 `.env` 文件并添加 `DEEPSEEK_API_KEY=你的密钥`，"
+            "然后重启应用。",
+            [],
+        )
+
     working_messages = list(trim_messages(messages))
     tool_call_log = []
 

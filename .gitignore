@@ -1,6 +1,7 @@
 .env
 __pycache__/
 *.pyc
+*.bak
 .idea/
 .vscode/
 data/user_data.json

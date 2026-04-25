@@ -31,6 +31,9 @@ _DEFAULT_DATA = {
     "extra_itinerary": [],        # 用户新增的行程站点
     "deleted_itinerary_idxs": [], # 被删除的 mock 行程站点索引
     "itinerary_updates": {},      # {idx_str: {field: value}} 行程站点修改
+    # --- R3 主动关怀引擎 ---
+    "proactive_events": [],    # [{event_type, severity, title, reason, suggested_action, dedupe_key, created_at}]
+    "proactive_read_keys": [], # 用户已标记「已读」的 dedupe_key 列表
 }
 
 
@@ -471,3 +474,46 @@ def _category_icon(category: str) -> str:
         "其他": "💳",
     }
     return icons.get(category, "💳")
+
+
+# ========== 主动关怀事件（R3）==========
+
+def list_proactive_events() -> list[dict]:
+    """返回所有主动关怀事件（含历史 + 已读）。按 created_at 倒序。"""
+    data = load_user_data()
+    events = data.get("proactive_events", []) or []
+    # 稳定倒序：最新事件在前
+    return sorted(events, key=lambda e: e.get("created_at", ""), reverse=True)
+
+
+def get_proactive_read_keys() -> list[str]:
+    """用户已标记为已读的 dedupe_key 列表。"""
+    data = load_user_data()
+    return data.get("proactive_read_keys", []) or []
+
+
+def upsert_proactive_event(event: dict) -> None:
+    """按 dedupe_key upsert 事件。已存在则更新 created_at 与字段；不存在则追加。"""
+    key = event.get("dedupe_key")
+    if not key:
+        return
+    data = load_user_data()
+    events = data.setdefault("proactive_events", [])
+    for i, e in enumerate(events):
+        if e.get("dedupe_key") == key:
+            events[i] = dict(event)
+            save_user_data(data)
+            return
+    events.append(dict(event))
+    save_user_data(data)
+
+
+def mark_proactive_read(dedupe_key: str) -> None:
+    """把 dedupe_key 标记为已读（去重加入 proactive_read_keys）。"""
+    if not dedupe_key:
+        return
+    data = load_user_data()
+    read_keys = data.setdefault("proactive_read_keys", [])
+    if dedupe_key not in read_keys:
+        read_keys.append(dedupe_key)
+        save_user_data(data)
