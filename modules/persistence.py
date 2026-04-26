@@ -207,7 +207,10 @@ MAX_PERSISTED_MESSAGES = 50  # 持久化对话历史上限
 def save_chat_history(messages: list[dict]):
     """保存对话历史（限制最大条数，防止 JSON 文件膨胀）。"""
     data = load_user_data()
-    data["chat_messages"] = messages[-MAX_PERSISTED_MESSAGES:]
+    data["chat_messages"] = [
+        _json_safe_message(m)
+        for m in messages[-MAX_PERSISTED_MESSAGES:]
+    ]
     save_user_data(data)
 
 
@@ -215,6 +218,26 @@ def load_chat_history() -> list[dict]:
     """加载对话历史。"""
     data = load_user_data()
     return data.get("chat_messages", [])
+
+
+def _json_safe_message(message: dict) -> dict:
+    """返回可 JSON 序列化的聊天消息，避免图片 bytes 写入历史导致保存失败。"""
+    safe = {}
+    for key, value in message.items():
+        if key == "_image_preview":
+            continue
+        safe[key] = _json_safe_value(value)
+    return safe
+
+
+def _json_safe_value(value):
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, list):
+        return [_json_safe_value(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _json_safe_value(v) for k, v in value.items()}
+    return str(value)
 
 
 def clear_chat_history():
@@ -277,8 +300,19 @@ def get_extra_todos() -> list[dict]:
     from datetime import timedelta
     today = datetime.now().date()
     cutoff = today - timedelta(days=7)
-    filtered = [t for t in extra if datetime.strptime(t["deadline"], "%Y-%m-%d").date() >= cutoff]
-    if len(filtered) < len(extra):
+    filtered = []
+    changed = False
+    for t in extra:
+        try:
+            deadline = datetime.strptime(t["deadline"], "%Y-%m-%d").date()
+        except (KeyError, TypeError, ValueError):
+            changed = True
+            continue
+        if deadline >= cutoff:
+            filtered.append(t)
+        else:
+            changed = True
+    if changed:
         data["extra_todos"] = filtered
         save_user_data(data)
     return filtered

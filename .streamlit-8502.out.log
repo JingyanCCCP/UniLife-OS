@@ -1,0 +1,8 @@
+WARNING: Static file serving is enabled, but no static folder found at D:\CC\UniLife-OS\static. To disable static file serving, set server.enableStaticServing to false.
+
+  You can now view your Streamlit app in your browser.
+
+  Local URL: http://localhost:8502
+  Network URL: http://10.21.44.131:8502
+  External URL: http://218.18.235.139:8502
+

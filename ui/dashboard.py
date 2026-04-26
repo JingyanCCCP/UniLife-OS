@@ -6,7 +6,7 @@ import streamlit as st
 
 from modules.mock_data import get_finance, get_health, get_schedule, get_travel_plan
 from modules.persistence import get_packing_checked, update_packing
-from ui.components import travel_item_html, toast_and_rerun
+from ui.components import ICON_CHART, render_section_heading, toast_and_rerun, travel_item_html
 from ui.theme import (
     BAR_PALETTE,
     DASHBOARD_PALETTE,
@@ -25,11 +25,15 @@ def _finance_section(col) -> None:
         finance = get_finance()
 
         cat_data = pd.DataFrame(
-            list(finance["categories"].items()), columns=["类别", "金额"],
+            list(finance["categories"].items()),
+            columns=["类别", "金额"],
         )
         fig = px.pie(
-            cat_data, values="金额", names="类别",
-            color_discrete_sequence=DASHBOARD_PALETTE, hole=0.48,
+            cat_data,
+            values="金额",
+            names="类别",
+            color_discrete_sequence=DASHBOARD_PALETTE,
+            hole=0.48,
         )
         fig.update_traces(
             textposition="inside",
@@ -40,8 +44,12 @@ def _finance_section(col) -> None:
         fig.update_layout(
             showlegend=True,
             legend=dict(
-                orientation="h", yanchor="bottom", y=-0.18,
-                xanchor="center", x=0.5, font=dict(color=MUTED),
+                orientation="h",
+                yanchor="bottom",
+                y=-0.18,
+                xanchor="center",
+                x=0.5,
+                font=dict(color=MUTED),
             ),
         )
         st.plotly_chart(apply_chart_theme(fig, 330), width="stretch", config=PLOTLY_CONFIG)
@@ -49,11 +57,11 @@ def _finance_section(col) -> None:
         st.markdown("**消费指标**")
         m1, m2, m3 = st.columns(3)
         with m1:
-            st.metric("日均消费", f"¥{int(finance['daily_avg_spent'])}")
+            st.metric("日均消费", f"¥{int(finance['daily_avg_spent'])}", border=True)
         with m2:
-            st.metric("剩余天数", f"{finance['days_left_in_month']}天")
+            st.metric("剩余天数", f"{finance['days_left_in_month']}天", border=True)
         with m3:
-            st.metric("建议日限", f"¥{int(finance['suggested_daily'])}")
+            st.metric("建议日限", f"¥{int(finance['suggested_daily'])}", border=True)
 
 
 def _schedule_section(col) -> None:
@@ -63,11 +71,15 @@ def _schedule_section(col) -> None:
         st.dataframe(
             df[["weekday", "time", "course", "location", "type"]].rename(
                 columns={
-                    "weekday": "星期", "time": "时间", "course": "课程",
-                    "location": "地点", "type": "类型",
+                    "weekday": "星期",
+                    "time": "时间",
+                    "course": "课程",
+                    "location": "地点",
+                    "type": "类型",
                 }
             ),
-            width="stretch", hide_index=True,
+            width="stretch",
+            hide_index=True,
         )
 
 
@@ -86,12 +98,21 @@ def _health_trend_section(col) -> None:
 
         st.markdown("**每日步数**")
         fig_steps = px.line(
-            df_health, x="date", y="steps", markers=True,
+            df_health,
+            x="date",
+            y="steps",
+            markers=True,
             labels={"date": "日期", "steps": "步数"},
         )
-        fig_steps.update_traces(line_color=MORANDI_BLUE, marker_color=MORANDI_BLUE, line_width=3)
+        fig_steps.update_traces(
+            line_color=MORANDI_BLUE,
+            marker_color=MORANDI_BLUE,
+            line_width=3,
+        )
         fig_steps.add_hline(
-            y=health["step_goal"], line_dash="dot", line_color=MORANDI_COPPER,
+            y=health["step_goal"],
+            line_dash="dot",
+            line_color=MORANDI_COPPER,
             annotation_text=f"目标 {health['step_goal']:,}",
         )
         fig_steps.update_layout(showlegend=False)
@@ -99,13 +120,18 @@ def _health_trend_section(col) -> None:
 
         st.markdown("**每日睡眠**")
         fig_sleep = px.bar(
-            df_health, x="date", y="sleep",
+            df_health,
+            x="date",
+            y="sleep",
             labels={"date": "日期", "sleep": "睡眠(小时)"},
             color="sleep",
             color_continuous_scale=BAR_PALETTE,
         )
         fig_sleep.add_hline(
-            y=7, line_dash="dot", line_color=MORANDI_VIOLET, annotation_text="建议 7h",
+            y=7,
+            line_dash="dot",
+            line_color=MORANDI_VIOLET,
+            annotation_text="建议 7h",
         )
         fig_sleep.update_layout(showlegend=False, coloraxis_showscale=False)
         st.plotly_chart(apply_chart_theme(fig_sleep, 250), width="stretch", config=PLOTLY_CONFIG)
@@ -121,7 +147,8 @@ def _travel_section(col) -> None:
 
         companions = travel.get("companions", [])
         companions_str = (
-            companions if isinstance(companions, str)
+            companions
+            if isinstance(companions, str)
             else "、".join(companions) if companions else "独自出行"
         )
         st.markdown(
@@ -131,11 +158,13 @@ def _travel_section(col) -> None:
 
         t_m1, t_m2 = st.columns(2)
         with t_m1:
-            st.metric("预算", f"¥{int(travel['budget'])}")
+            st.metric("预算", f"¥{int(travel['budget'])}", border=True)
         with t_m2:
             st.metric(
-                "预估花费", f"¥{int(travel['total_estimated_cost'])}",
+                "预估花费",
+                f"¥{int(travel['total_estimated_cost'])}",
                 delta=f"剩余 ¥{int(travel['budget'] - travel['total_estimated_cost'])}",
+                border=True,
             )
 
         st.markdown("**行程时间线**")
@@ -144,8 +173,11 @@ def _travel_section(col) -> None:
                 cost_str = f"¥{int(stop['cost'])}" if stop["cost"] > 0 else "免费"
                 st.markdown(
                     travel_item_html(
-                        stop.get("icon", "📍"), stop["time"], stop["activity"],
-                        stop["location"], cost_str,
+                        stop.get("icon", "📍"),
+                        stop["time"],
+                        stop["activity"],
+                        stop["location"],
+                        cost_str,
                     ),
                     unsafe_allow_html=True,
                 )
@@ -169,13 +201,7 @@ def _travel_section(col) -> None:
 
 
 def render_dashboard_tab() -> None:
-    st.markdown(
-        '<div class="section-heading dashboard-heading">'
-        '<span>Personal data board</span>'
-        '<h2>数据看板</h2>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+    render_section_heading("Personal data board", "个人数据看板", ICON_CHART, "dashboard-heading")
     top_left, top_right = st.columns([1.18, 0.82], gap="large")
     _finance_section(top_left)
     _schedule_section(top_right)

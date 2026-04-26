@@ -2,9 +2,9 @@
 
 ## 项目简介
 
-2026 AI Agent 创新大赛参赛作品。UniLife OS 是一个专为大学生打造的 AI 校园生活助手，涵盖课程管理、财务记账、健康打卡、待办事项、旅行规划五大模块。用户可通过自然语言对话完成所有操作，AI Agent 自动调用 24 个工具处理请求。
+2026 AI Agent 创新大赛参赛作品。UniLife OS 是一个专为大学生打造的 AI 校园生活助手，涵盖课程管理、财务记账、健康打卡、待办事项、旅行规划五大模块。用户可通过自然语言对话或上传图片完成所有操作，AI Agent 自动调用 28 个工具处理请求（24 文本工具 + 4 多模态视觉工具）。
 
-基于 Streamlit + DeepSeek-V3（function calling），支持 PWA 添加到手机主屏幕。
+基于 Streamlit + DeepSeek-V4-Flash（决策 + function calling）+ 豆包 vision（多模态识别），支持 PWA 添加到手机主屏幕。
 
 ## 技术架构
 
@@ -17,8 +17,11 @@
               │
          chat_agent() ← chat_engine.py
               │
-              ├── DeepSeek API（function calling，最多 5 轮）
-              ├── tools.py（24 个工具 schema + 执行路由）
+              ├── DeepSeek-V4-Flash API（决策 + function calling，最多 5 轮）
+              ├── tools.py / agent/tools/*.py（28 工具 schema + 执行路由）
+              │     ├── 24 文本工具（course/finance/health/todo/travel）
+              │     └── 4 多模态视觉工具（vision，链式调用豆包）
+              ├── modules/vision.py（豆包 Volces Ark 视觉客户端）
               └── system_prompt.py（动态注入用户上下文）
               │
          数据层
@@ -33,7 +36,7 @@
 - **Toast 延迟**：`_toast_and_rerun()` 暂存消息到 session_state，rerun 后在 `main()` 顶部显示，解决 toast 被 rerun 清除的问题
 - **主题自适应 CSS**：使用 `background-image` 半透明叠加（非 `background` 覆盖），保留 Streamlit 原生底色，单套 CSS 同时适配 Light/Dark
 
-## Agent 工具总览（24 个）
+## Agent 工具总览（28 个 = 24 文本 + 4 多模态视觉）
 
 | 类别 | 工具 | 功能 |
 |------|------|------|
@@ -61,6 +64,10 @@
 |       | `delete_itinerary_stop` | 删除行程站点 |
 |       | `update_itinerary_stop` | 修改行程站点 |
 |       | `update_packing` | 勾选旅行必带清单 |
+| **多模态** | `record_expense_from_image` | 拍小票 → 自动识别金额并记账 |
+|       | `import_courses_from_image` | 拍课表 → 批量导入课程（自动去重） |
+|       | `log_food_calories` | 拍食物 → 识别食物名 + 估算卡路里 |
+|       | `check_packing_from_image` | 拍行李 → 对照旅行清单返回 missing/found |
 
 ## 文件结构
 
@@ -72,7 +79,8 @@ modules/
   mock_data.py          — 基础数据 + 持久化合并（get_schedule/finance/health/todos/exams/travel/alerts）
   chat_engine.py        — DeepSeek 对话引擎（Agent 循环 + 上下文裁剪）
   persistence.py        — JSON 持久化层（原子写入，增量覆盖设计）
-  tools.py              — 24 个 Agent 工具 Schema + 执行路由
+  tools.py              — 24 个文本 Agent 工具 facade（re-export agent.*）
+  vision.py             — 豆包 Volces Ark 视觉客户端（4 个识别函数）
 prompts/
   system_prompt.py      — 动态 System Prompt（注入用户实时上下文 + 工具指引）
 data/
@@ -87,8 +95,9 @@ data/
 
 ## 技术栈
 
-- **前端**：Streamlit 1.30+、Plotly（图表）、Pandas（数据处理）、PWA（Service Worker）
-- **AI**：DeepSeek-V3（deepseek-chat），OpenAI SDK 兼容接口，function calling
+- **前端**：Streamlit 1.30+、Plotly（图表）、Pandas（数据处理）、Pillow（图片压缩）、PWA（Service Worker）
+- **AI 决策层**：DeepSeek-V4-Flash（`deepseek-v4-flash`），OpenAI SDK 兼容接口，function calling
+- **AI 视觉层**：豆包 Volces Ark（`doubao-*-vision`），OpenAI SDK 兼容接口，多模态 chat completions
 - **持久化**：JSON 文件（原子写入，tempfile + os.replace）
 - **部署**：Cloudflare Tunnel（cloudflared Quick Tunnel）演示部署
 
@@ -196,40 +205,42 @@ cloudflared tunnel --url http://localhost:8501
 
 ## 当前重构入口（2026-04-25）
 
-项目正围绕深圳理工大学 AI Agent 创新大赛推进赛事导向重构。旧 Phase 记录仍保留作为历史上下文；后续以以下两份文档为准：
+项目正围绕深圳理工大学 AI Agent 创新大赛推进赛事导向重构。旧 Phase 记录仍保留作为历史上下文；后续以以下三份文档为准：
 
-- `docs/赛事导向重构规划案.md`：任务卡队列、6 天日历、5 分钟演示脚本、赛事评分映射；**接手 AI 从这里的第 0 节开始**。
-- `docs/开发记录.md`：实时记录当前激活任务卡、今日变更、决策记录。
+- `docs/重构规划.md`：合并后的任务卡队列（原赛事导向重构规划案 v1+v2 已合并）+ 决策记录 + 风险清单 + 演示脚本。**接手 AI 从这里的第 0 节开始**。
+- `docs/开发记录.md`：实时记录当前激活任务卡、近 3 条变更详细、历史变更索引、决策记录。
+- `docs/设计系统.md`：R8 设计令牌（色板 / 字体 / 字号 / 间距 / 圆角 / 边框 / 阴影 7 类）。
 
-当前重构状态（2026-04-25 02:22）：
+当前重构状态（2026-04-26）：
 
-- **R0 文档定稿 ✅ / R1 数据源稳定化 ✅ / R2 工具模块化 ✅ / R3 主动关怀引擎 ✅ / R4 UI 拆分 ✅ / R5 测试 + 鲁棒性 + 可观测性 ✅**
-- 代码层重构全部落地，pytest 52/52 绿，AppTest 完整渲染 0 异常，API Key 缺失走兜底文案。
-- 新增目录：`agent/`（工具层）、`proactive/`（主动关怀引擎）、`ui/`（视图层）、`tests/`（pytest 覆盖）、`tools/`（演示重置脚本）。
-- 文件结构：`app.py` 735 → 49 行主入口；`modules/tools.py` 1261 → 16 行 facade；seed 模板抽出到 `modules/seed_data.py`。
-- R6（初赛材料 + 决赛演示）由队友在 Day 4-6 主导，你只辅助架构答疑 + bug 修复 + 录屏前 `python tools/reset_demo.py`。
+- **第一期 R0-R5 ✅**：动态 seed / 工具模块化 / 主动关怀引擎 / UI 拆分 / 52 项 pytest 全部完成。
+- **第二期 R7（模型升级 + 多模态）✅**：T1 V3→V4-Flash 切换 + 豆包 base_url 接入；T2 modules/vision.py 4 个识别函数；T3 agent/tools/vision.py 4 个链式工具；T4 ui/chat.py 图片上传 + b64 注入；T5 16 条 vision 单元测试；T6 全量验收 + endpoint 联调通过。工具数 24 → 28。
+- **第二期 R8（前端构成主义视觉 + 拟态收敛）✅**：设计系统文档、双卡 hero、主动关怀卡、Tab / 按钮、侧边栏、数据看板 metric、PWA 静态路径全部收敛；截图已归档到 `docs/screenshots/`。
+- **代码收尾 ✅**：图片预览持久化、待办 deadline 校验、坏数据清理、Streamlit 1.56 参数兼容、CSS 结构修复与 metric 字号层级完成。
+- **R6（队友主导初赛材料 + 决赛演示）排队**：R8 完成后激活，由队友主导文稿 / PPT / 录屏，AI 辅助稳定性和材料校对。
 
-重构核心原则（保留）：
+第二期重构核心原则（保留）：
 
 - 不推倒重写，保留 Streamlit + DeepSeek function calling 主链路。
 - mock 降级为动态 seed（**不走 SQLite**，本轮跳过数据库迁移，见开发记录 2026-04-25 决策）。
-- 同一时间只推进一张任务卡。改动前先读规划案对应卡的「允许/禁止改动的文件」。
+- 同一时间只推进一张任务卡。改动前先读 `docs/重构规划.md` 对应卡的「允许/禁止改动」字段。
 - 演示模式：`APP_MODE=demo streamlit run app.py` 打开「🧹 一键重置 demo 数据」按钮与「🧪 开发者信息（observability）」折叠区。
 
-## 当前状态（2026-02-25）
+## 当前状态（2026-04-26 R8 完成）
 
-- **布局**：`st.tabs(["💬 AI 对话", "📊 数据看板"])` 标准 tab 切换
+- **布局**：`st.tabs(["💬 AI 对话", "📊 数据看板"])` 标准 tab 切换；底部 3px 品牌色条标记激活态
 - **输入框**：在"AI 对话" tab 内部，`st.chat_input()` 位于 `render_chat_tab()` 中
-- **Header**：紧凑型 flex 水平布局（Phase 6.3 改动已保留）
-- **Agent 工具**：24 个，覆盖课程/财务/健康/待办/考试/旅行全模块
+- **图片上传**：chat_input 上方的 `📷 上传图片` expander，支持 jpg/jpeg/png，自动 Pillow 压缩 ≤ 1024px
+- **Header**：双卡 hero + 状态胶囊 + 4 宫格数字面板；构成主义骨架叠加克制拟态
+- **侧边栏 / 数据看板**：米色 / 暖白 surface、hairline、内高光、软阴影；metric 主体数值突出，delta 辅助信息降权
+- **Agent 工具**：28 个（24 文本 + 4 多模态），覆盖课程/财务/健康/待办/考试/旅行全模块 + 拍照入账 / 拍课表 / 拍食物 / 拍行李
 - **持久化**：JSON 增量覆盖，原子写入
 - **PWA**：manifest + Service Worker + 离线回退
+- **测试**：71 项 pytest（含 vision / 持久化 / 工具边界），AppTest 默认 + demo 双模式 0 异常
+- **主题锁定**：`.streamlit/config.toml` 锁 light 主题，避免 dark 模式覆盖设计令牌
 
-## 待做（Phase 7 方向参考）
+## 待做（R6 决赛准备）
 
-- 悬浮输入框（需要新方案，避免 Streamlit rerun 循环问题）
-- 更多 Agent 工具（添加/修改考试安排）
-- 数据导出（消费报表、健康周报）
-- 多用户支持（当前单用户）
-- Docker 容器化部署
-- 比赛演示 PPT / 录屏准备
+- 决赛 PPT / 录屏准备（队友主导，AI 辅助）
+- 录屏前执行 `python -m pytest` + AppTest 双模式 + `python tools/reset_demo.py`
+- 如需补拍截图，继续归档到 `docs/screenshots/`
