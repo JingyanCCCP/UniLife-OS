@@ -95,7 +95,7 @@ def chat_agent(messages: list[dict], tools: list[dict], execute_tool_fn) -> tupl
 
         # 有工具调用 → 执行并继续
         # 将 assistant 消息（含 tool_calls）加入对话
-        working_messages.append({
+        assistant_dict: dict = {
             "role": "assistant",
             "content": assistant_msg.content or "",
             "tool_calls": [
@@ -109,7 +109,12 @@ def chat_agent(messages: list[dict], tools: list[dict], execute_tool_fn) -> tupl
                 }
                 for tc in assistant_msg.tool_calls
             ],
-        })
+        }
+        # DeepSeek 思考模式要求 reasoning_content 必须原样传回
+        reasoning = getattr(assistant_msg, "reasoning_content", None)
+        if reasoning:
+            assistant_dict["reasoning_content"] = reasoning
+        working_messages.append(assistant_dict)
 
         # 逐个执行工具
         for tc in assistant_msg.tool_calls:

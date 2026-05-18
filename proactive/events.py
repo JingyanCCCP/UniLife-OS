@@ -68,10 +68,24 @@ def list_all() -> list[ProactiveEvent]:
     return [from_dict(e) for e in list_proactive_events()]
 
 
+def _is_still_active(event: ProactiveEvent) -> bool:
+    """过滤状态已经恢复的旧提醒，避免继续进入 UI / LLM 上下文。"""
+    try:
+        if event.event_type == "exercise_missing":
+            from modules.mock_data import get_health
+            return get_health().get("exercise_target_miss_streak", 0) >= 3
+        if event.event_type == "budget_risk":
+            from modules.mock_data import get_finance
+            return get_finance().get("budget_usage_pct", 0) > 80
+    except Exception:
+        return True
+    return True
+
+
 def list_unread(limit: int | None = None) -> list[ProactiveEvent]:
     """未读事件（倒序，最多 limit 条）。"""
     read = set(get_proactive_read_keys())
-    events = [e for e in list_all() if e.dedupe_key not in read]
+    events = [e for e in list_all() if e.dedupe_key not in read and _is_still_active(e)]
     if limit is not None:
         events = events[:limit]
     return events

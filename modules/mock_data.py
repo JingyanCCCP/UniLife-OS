@@ -164,9 +164,16 @@ def get_health() -> dict:
         entry["date"] = day.strftime("%Y-%m-%d")
         history.append(entry)
 
+    step_goal = 8000
+    exercise_target_miss_streak = 0
+    for entry in history:
+        if entry.get("steps", 0) >= step_goal:
+            break
+        exercise_target_miss_streak += 1
+
     return {
         "today_steps": steps,
-        "step_goal": 8000,
+        "step_goal": step_goal,
         "sleep_hours": sleep_hours,
         "sleep_quality": sleep_quality,
         "water_cups": water,
@@ -176,6 +183,7 @@ def get_health() -> dict:
         "last_exercise": last_exercise,
         "mood": mood,
         "checkin_streak": 6 if exercise_today else 5,
+        "exercise_target_miss_streak": exercise_target_miss_streak,
         "bmi": 21.3,
         "weight": 65.0,
         "history": history,

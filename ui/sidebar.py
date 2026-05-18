@@ -138,7 +138,7 @@ def _health_block() -> None:
     with hcol4:
         st.metric("运动", f"{health['exercise_this_week']}/{health['exercise_goal']}次", border=True)
 
-    st.caption(f"😊 心情: {health['mood']} | 🔥 连续打卡 {health['checkin_streak']} 天")
+    st.caption(f"😊 心情: {health['mood']} | 🔥 健康记录连续 {health['checkin_streak']} 天")
 
     st.markdown("**快速打卡：**")
     btn_cols = st.columns(3)

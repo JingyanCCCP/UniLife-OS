@@ -45,6 +45,34 @@ def test_mark_read_removes_from_unread(tmp_data_file):
     assert key not in remaining
 
 
+def test_exercise_missing_uses_daily_target_not_exercise_flag(tmp_data_file):
+    from modules import persistence
+
+    persistence.log_exercise()
+    produced = rules.check_exercise_missing()
+    assert len(produced) == 1
+    assert produced[0].title == "运动未达标"
+    assert "连续 5 天" in produced[0].reason
+
+
+def test_resolved_exercise_missing_hidden_from_unread(tmp_data_file):
+    from modules import persistence
+    from proactive.events import ProactiveEvent
+
+    events.upsert(ProactiveEvent(
+        event_type="exercise_missing",
+        severity="medium",
+        title="运动未达标",
+        reason="你已经连续 5 天没有达到日运动目标。",
+        suggested_action="今晚去操场走 20 分钟。",
+        dedupe_key="exercise_missing",
+    ))
+
+    assert "exercise_missing" in [e.dedupe_key for e in engine.list_unread()]
+    persistence.log_steps(9000)
+    assert "exercise_missing" not in [e.dedupe_key for e in engine.list_unread()]
+
+
 def test_dedupe_expires_after_window(tmp_data_file):
     """模拟事件在 13h 前发生 → 再次扫描应重新触发（同 dedupe_key 也算新事件）。"""
     # 先扫一轮

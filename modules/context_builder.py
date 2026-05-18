@@ -57,16 +57,13 @@ def build_context_summary() -> dict:
     )
 
     # ---- 健康摘要 ----
-    days_since_exercise = (
-        datetime.now() - datetime.strptime(health["last_exercise"], "%Y-%m-%d")
-    ).days
     health_summary = (
         f"今日步数 {health['today_steps']}/{health['step_goal']}，"
         f"昨晚睡眠 {health['sleep_hours']}小时（{health['sleep_quality']}），"
         f"本周运动 {health['exercise_this_week']}/{health['exercise_goal']}次，"
         f"喝水 {health['water_cups']}/{health['water_goal']}杯。"
-        f"打卡连续 {health['checkin_streak']}天。"
-        f"已有 {days_since_exercise} 天未运动。"
+        f"健康记录连续 {health['checkin_streak']}天。"
+        f"日运动目标已连续 {health['exercise_target_miss_streak']} 天未达标。"
         f"BMI: {health['bmi']}，体重 {health['weight']}kg。"
     )
 

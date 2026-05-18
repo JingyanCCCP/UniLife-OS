@@ -7,7 +7,7 @@ UniLife OS — 主动关怀规则库（R3 新增）
 - check_todo_due:          未完成待办 24h 内到期（每条一个事件）
 - check_exam_near:         未来 7 天内考试（每场一个事件）
 - check_sleep_short:       连续 3 天睡眠 < 7h
-- check_exercise_missing:  连续 3 天未运动
+- check_exercise_missing:  连续 3 天未达到日运动目标
 - check_travel_packing:    旅行 ≤ 3 天但必带清单未勾选
 
 规则尽量独立、纯读：只查 mock_data / persistence，不写回。产出事件由 engine 负责去重和
@@ -123,21 +123,19 @@ def check_sleep_short() -> list[ProactiveEvent]:
 
 
 def check_exercise_missing() -> list[ProactiveEvent]:
-    """连续 3 天未运动（history 最近 3 天，不含今日）。"""
+    """连续 3 天未达到日运动目标（按每日步数目标判断，包含今日）。"""
     from modules.mock_data import get_health
-    history = get_health().get("history", [])
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    past = [h for h in history if h.get("date") != today_str][:3]
-    if len(past) < 3:
+    health = get_health()
+    miss_streak = health.get("exercise_target_miss_streak", 0)
+    if miss_streak < 3:
         return []
-    if any(h.get("exercise") for h in past):
-        return []
+    remaining_steps = max(health["step_goal"] - health["today_steps"], 0)
     return [ProactiveEvent(
         event_type="exercise_missing",
         severity="medium",
-        title="运动缺失",
-        reason="过去 3 天没有打卡过任何运动，本周目标还差一截。",
-        suggested_action="今晚去操场跑 2 圈或和室友打 30 分钟球，打完卡就行。",
+        title="运动未达标",
+        reason=f"你已经连续 {miss_streak} 天没有达到日运动目标，今天还差 {remaining_steps} 步。",
+        suggested_action="今晚去操场走 20 分钟，或者饭后绕校园散一圈，把今天的步数先补到目标线附近。",
         dedupe_key="exercise_missing",
     )]
 

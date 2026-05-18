@@ -128,12 +128,13 @@ def _exec_query_health(args: dict) -> str:
     lines = [
         "今日健康数据：",
         f"- 步数: {health['today_steps']:,}/{health['step_goal']:,}",
+        f"- 日运动目标连续未达标: {health['exercise_target_miss_streak']} 天",
         f"- 睡眠: {health['sleep_hours']}h（{health['sleep_quality']}）",
         f"- 喝水: {health['water_cups']}/{health['water_goal']} 杯",
         f"- 本周运动: {health['exercise_this_week']}/{health['exercise_goal']} 次",
         f"- 距上次运动: {days_since} 天",
         f"- 心情: {health['mood']}",
-        f"- 连续打卡: {health['checkin_streak']} 天",
+        f"- 健康记录连续: {health['checkin_streak']} 天",
         f"- BMI: {health['bmi']} | 体重: {health['weight']}kg",
     ]
     return "\n".join(lines)

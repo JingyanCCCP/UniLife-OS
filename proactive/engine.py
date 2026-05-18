@@ -51,7 +51,10 @@ def scan_and_persist() -> list[ProactiveEvent]:
         for ev in produced:
             if not isinstance(ev, ProactiveEvent):
                 continue
-            if _recently_emitted(ev.dedupe_key, now):
+            recently = _recently_emitted(ev.dedupe_key, now)
+            if recently:
+                # 数据可能变了（如预算金额），更新事件内容但不计入新事件
+                ev_module.upsert(ev)
                 continue
             ev_module.upsert(ev)
             new_events.append(ev)

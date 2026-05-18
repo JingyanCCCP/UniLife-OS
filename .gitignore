@@ -5,3 +5,14 @@ __pycache__/
 .idea/
 .vscode/
 data/user_data.json
+
+# Non-code files (user-specified exclusions)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.pptx
+tmp/
+.streamlit-*.log
+技术方案文档.md
+UniLife_OS_*.pptx
